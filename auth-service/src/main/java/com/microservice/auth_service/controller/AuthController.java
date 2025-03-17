@@ -27,7 +27,7 @@ public class AuthController {
 
     @PostMapping("/refresh")
     public Map<String, String> refreshToken(@Valid @RequestBody RefreshTokenRequest request) {
-        return authService.refreshToken(request.getRefreshToken());
+        return authService.refreshToken(request.getRefreshTokenUUID());
     }
 
     @PostMapping("/logout")

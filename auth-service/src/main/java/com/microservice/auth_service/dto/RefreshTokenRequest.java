@@ -7,6 +7,6 @@ import lombok.Setter;
 @Getter
 @Setter
 public class RefreshTokenRequest {
-    @NotBlank(message = "Refresh-токен не должен быть пустым")
-    private String refreshToken;
+    @NotBlank(message = "Refresh-токен ID не должен быть пустым")
+    private String refreshTokenUUID;
 }

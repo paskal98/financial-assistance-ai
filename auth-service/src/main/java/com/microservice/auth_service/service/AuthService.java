@@ -30,7 +30,7 @@ public class AuthService {
         userRepository.save(user);
 
         String token = jwtUtil.generateToken(email);
-        String refreshToken = refreshTokenService.createRefreshToken(user).getToken();
+        String refreshToken = String.valueOf(refreshTokenService.createRefreshToken(user).getId());
 
         return Map.of("token", token, "refreshToken", refreshToken);
     }
@@ -42,20 +42,39 @@ public class AuthService {
         }
 
         String token = jwtUtil.generateToken(email);
-        String refreshToken = refreshTokenService.createRefreshToken(userOpt.get()).getToken();
+        String refreshToken = String.valueOf(refreshTokenService.createRefreshToken(userOpt.get()).getId());
 
         return Map.of("token", token, "refreshToken", refreshToken);
     }
 
-    public Map<String, String> refreshToken(String refreshToken) {
-        Optional<RefreshToken> tokenOpt = refreshTokenService.findByToken(refreshToken);
-        if (tokenOpt.isEmpty() || tokenOpt.get().getExpiryDate().isBefore(Instant.now())) {
-            throw new RuntimeException("Refresh-токен недействителен");
+    public Map<String, String> refreshToken(String refreshTokenUUID) {
+        // Ищем токен в базе
+        Optional<RefreshToken> tokenOpt = refreshTokenService.findById(refreshTokenUUID);
+        if (tokenOpt.isEmpty()) {
+            throw new RuntimeException("Refresh-токен не найден или некорректен");
         }
 
-        String newToken = jwtUtil.generateToken(tokenOpt.get().getUser().getEmail());
-        return Map.of("token", newToken);
+        RefreshToken storedToken = tokenOpt.get();
+        User user = storedToken.getUser();
+
+        // Проверяем срок действия
+        if (storedToken.getExpiryDate().isBefore(Instant.now())) {
+            refreshTokenService.deleteByUser(user);
+            throw new RuntimeException("Refresh-токен истек, пожалуйста, войдите снова");
+        }
+
+        // Сравниваем rawToken с хешированным токеном в БД
+        if (!refreshTokenService.validateRefreshToken(refreshTokenUUID, storedToken)) {
+            throw new RuntimeException("Неверный refresh-токен");
+        }
+
+        // Генерируем новый Access Token
+        String newAccessToken = jwtUtil.generateToken(user.getEmail());
+
+        return Map.of("token", newAccessToken);
     }
+
+
 
     //ToDo - add check
     public void logout(String userEmail) {
