@@ -1,33 +1,36 @@
-package com.microservice.auth_service.service;
+package com.microservice.auth_service.service.authorization;
 
 import com.microservice.auth_service.model.User;
 import com.microservice.auth_service.repository.UserRepository;
+import com.microservice.auth_service.service.util.LocalizationService;
+import com.microservice.auth_service.service.util.QRCodeService;
 import com.warrenstrange.googleauth.GoogleAuthenticator;
 import com.warrenstrange.googleauth.GoogleAuthenticatorKey;
 import com.warrenstrange.googleauth.GoogleAuthenticatorQRGenerator;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
-import java.util.Optional;
+import java.util.Locale;
 
 @Service
 @RequiredArgsConstructor
 public class TwoFactorAuthService {
     private final UserRepository userRepository;
-    private final QRCodeService qrCodeService ;
+    private final QRCodeService qrCodeService;
     private final GoogleAuthenticator googleAuthenticator = new GoogleAuthenticator();
+    private final LocalizationService localizationService;
 
-    public String generateSecretKey(User user) {
+    public String generateSecretKey(User user, Locale locale) {
         GoogleAuthenticatorKey key = googleAuthenticator.createCredentials();
-        user.setTwoFASecret(key.getKey()); // Сохраняем только строку ключа
+        user.setTwoFASecret(key.getKey());
         user.set2FAEnabled(true);
         userRepository.save(user);
         return key.getKey();
     }
 
-    public String getQRCode(User user) {
+    public String getQRCode(User user, Locale locale) {
         if (user.getTwoFASecret() == null) {
-            throw new IllegalStateException("2FA не активирована для пользователя");
+            throw new IllegalStateException(localizationService.getMessage("error.2fa.not_activated", locale));
         }
 
         String otpAuthUrl = GoogleAuthenticatorQRGenerator.getOtpAuthTotpURL(

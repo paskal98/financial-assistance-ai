@@ -1,4 +1,4 @@
-package com.microservice.auth_service.service;
+package com.microservice.auth_service.service.authorization;
 
 import com.microservice.auth_service.model.User;
 import com.microservice.auth_service.repository.UserRepository;
@@ -16,13 +16,11 @@ public class BackupCodeService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
 
-    // Генерация новых резервных кодов (5 штук)
     public List<String> generateBackupCodes(User user) {
         List<String> codes = IntStream.range(0, 5)
                 .mapToObj(i -> UUID.randomUUID().toString().substring(0, 8))
                 .collect(Collectors.toList());
 
-        // Хешируем коды перед сохранением
         List<String> hashedCodes = codes.stream()
                 .map(passwordEncoder::encode)
                 .collect(Collectors.toList());
@@ -30,10 +28,9 @@ public class BackupCodeService {
         user.setBackupCodes(hashedCodes);
         userRepository.save(user);
 
-        return codes; // Отдаем пользователю НЕ захешированные коды
+        return codes;
     }
 
-    // Проверка введенного кода
     public boolean validateBackupCode(User user, String inputCode) {
         List<String> hashedCodes = user.getBackupCodes();
 

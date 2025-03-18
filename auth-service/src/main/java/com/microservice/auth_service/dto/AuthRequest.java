@@ -9,15 +9,14 @@ import lombok.Setter;
 @Getter
 @Setter
 public class AuthRequest {
-    @Email(message = "Некорректный email")
-    @NotBlank(message = "Email не должен быть пустым")
+    @Email(message = "{validation.email.invalid}")
+    @NotBlank(message = "{validation.email.empty}")
     private String email;
 
-    @NotBlank(message = "Пароль не должен быть пустым")
-    @Size(min = 6, max = 30, message = "Пароль должен содержать от 6 до 30 символов")
+    @NotBlank(message = "{validation.password.empty}")
+    @Size(min = 6, max = 30, message = "{validation.password.length}")
     private String password;
 
     private Integer otpCode;
-
     private String backupCode;
 }

@@ -6,7 +6,7 @@ import lombok.Setter;
 
 @Getter
 @Setter
-public class RefreshTokenRequest {
-    @NotBlank(message = "{validation.refresh_token.empty}")
-    private String refreshTokenUUID;
+public class AddUserRoleRequest {
+    @NotBlank(message = "{validation.role.empty}")
+    private String roleName;
 }

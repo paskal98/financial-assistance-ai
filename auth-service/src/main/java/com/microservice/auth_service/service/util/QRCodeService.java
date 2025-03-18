@@ -1,4 +1,4 @@
-package com.microservice.auth_service.service;
+package com.microservice.auth_service.service.util;
 
 import com.google.zxing.BarcodeFormat;
 import com.google.zxing.WriterException;
@@ -10,8 +10,6 @@ import org.springframework.stereotype.Service;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.nio.file.FileSystems;
-import java.nio.file.Path;
 import java.util.Base64;
 
 @Slf4j
@@ -30,7 +28,6 @@ public class QRCodeService {
             MatrixToImageWriter.writeToStream(bitMatrix, "PNG", outputStream);
             return outputStream.toByteArray();
         } catch (WriterException | IOException e) {
-            log.error("Ошибка генерации QR-кода", e);
             return null;
         }
     }
@@ -40,14 +37,4 @@ public class QRCodeService {
         return qrCodeBytes != null ? Base64.getEncoder().encodeToString(qrCodeBytes) : null;
     }
 
-    public void saveQRCodeToFile(String otpAuthUrl, String filePath) {
-        try {
-            QRCodeWriter qrCodeWriter = new QRCodeWriter();
-            BitMatrix bitMatrix = qrCodeWriter.encode(otpAuthUrl, BarcodeFormat.QR_CODE, QR_CODE_WIDTH, QR_CODE_HEIGHT);
-            Path path = FileSystems.getDefault().getPath(filePath);
-            MatrixToImageWriter.writeToPath(bitMatrix, "PNG", path);
-        } catch (WriterException | IOException e) {
-            log.error("Ошибка сохранения QR-кода в файл", e);
-        }
-    }
 }

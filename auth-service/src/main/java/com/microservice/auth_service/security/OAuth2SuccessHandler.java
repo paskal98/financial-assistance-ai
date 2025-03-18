@@ -33,7 +33,7 @@ public class OAuth2SuccessHandler implements org.springframework.security.web.au
             throw new IllegalStateException("Ошибка: OAuth2 токен отсутствует!");
         }
 
-        String provider = token.getAuthorizedClientRegistrationId(); // ✅ Определяем провайдера (google, github, apple)
+        String provider = token.getAuthorizedClientRegistrationId();
         String email = token.getPrincipal().getAttribute("email");
         if (email == null) {
             throw new IllegalStateException("Ошибка: Email не найден!");
@@ -60,7 +60,7 @@ public class OAuth2SuccessHandler implements org.springframework.security.web.au
         String jwtToken = jwtUtil.generateToken(email);
 
         String targetUrl = UriComponentsBuilder.fromUriString(frontendUrlBase + "/oauth-success")
-                .queryParam("provider", provider) // ✅ Теперь фронтенд будет знать, через какой OAuth вошел пользователь
+                .queryParam("provider", provider)
                 .queryParam("token", jwtToken)
                 .build().toUriString();
 

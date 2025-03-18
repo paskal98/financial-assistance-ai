@@ -2,15 +2,15 @@ package com.microservice.auth_service.controller;
 
 import com.microservice.auth_service.dto.AuthRequest;
 import com.microservice.auth_service.dto.RefreshTokenRequest;
-import com.microservice.auth_service.service.AuthService;
+import com.microservice.auth_service.service.authorization.AuthService;
+import com.microservice.auth_service.service.util.LocalizationService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 
 @RestController
@@ -18,29 +18,30 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class AuthController {
     private final AuthService authService;
+    private final LocalizationService localizationService;
 
     @PostMapping("/register")
-    public ResponseEntity<Map<String, String>> register(@Valid @RequestBody AuthRequest request) {
-        Map<String, String> response = authService.register(request.getEmail(), request.getPassword());
+    public ResponseEntity<Map<String, String>> register(@Valid @RequestBody AuthRequest request, Locale locale) {
+        Map<String, String> response = authService.register(request.getEmail(), request.getPassword(), locale);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
     @PostMapping("/login")
-    public ResponseEntity<Map<String, String>> login(@Valid @RequestBody AuthRequest request) {
-        Map<String, String> response = authService.login(request);
+    public ResponseEntity<Map<String, String>> login(@Valid @RequestBody AuthRequest request, Locale locale) {
+        Map<String, String> response = authService.login(request, locale);
         return ResponseEntity.status(HttpStatus.OK).body(response);
     }
 
-
     @PostMapping("/refresh")
-    public ResponseEntity<Map<String, String>> refreshToken(@Valid @RequestBody RefreshTokenRequest request) {
-        Map<String, String> response = authService.refreshToken(request.getRefreshTokenUUID());
+    public ResponseEntity<Map<String, String>> refreshToken(@Valid @RequestBody RefreshTokenRequest request, Locale locale) {
+        Map<String, String> response = authService.refreshToken(request.getRefreshTokenUUID(), locale);
         return ResponseEntity.status(HttpStatus.OK).body(response);
     }
 
     @PostMapping("/logout")
-    public ResponseEntity<Map<String, String>> logout(@RequestBody Map<String, String> request) {
-        authService.logout(request.get("email"));
-        return ResponseEntity.status(HttpStatus.OK).body(Map.of("message","Вы успешно вышли из системы"));
+    public ResponseEntity<Map<String, String>> logout(@RequestBody Map<String, String> request, Locale locale) {
+        authService.logout(request.get("email"), locale);
+        return ResponseEntity.status(HttpStatus.OK)
+                .body(Map.of("message", localizationService.getMessage("success.logout", locale)));
     }
 }

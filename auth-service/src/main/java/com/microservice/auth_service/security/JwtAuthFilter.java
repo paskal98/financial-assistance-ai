@@ -1,6 +1,6 @@
 package com.microservice.auth_service.security;
 
-import com.microservice.auth_service.service.UserService;
+import com.microservice.auth_service.service.user.CustomUserDetailsService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -17,7 +17,7 @@ import java.io.IOException;
 @RequiredArgsConstructor
 public class JwtAuthFilter extends OncePerRequestFilter {
     private final JwtUtil jwtUtil;
-    private final UserService userService;
+    private final CustomUserDetailsService customUserDetailsService;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
@@ -32,7 +32,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         String email = jwtUtil.extractEmail(token);
 
         if (email != null && SecurityContextHolder.getContext().getAuthentication() == null) {
-            UserDetails userDetails = userService.loadUserByUsername(email);
+            UserDetails userDetails = customUserDetailsService.loadUserByUsername(email);
             if (jwtUtil.validateToken(token) && userDetails.getUsername().equals(email)) {
                 UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
                         userDetails, null, userDetails.getAuthorities()

@@ -1,4 +1,4 @@
-package com.microservice.auth_service.service;
+package com.microservice.auth_service.service.authorization;
 
 import com.microservice.auth_service.model.RefreshToken;
 import com.microservice.auth_service.model.User;
@@ -27,13 +27,13 @@ public class RefreshTokenService {
 
     @Transactional
     public UUID createRefreshToken(User user) {
-        refreshTokenRepository.deleteByUser(user); // Удаляем старый refresh-токен
+        refreshTokenRepository.deleteByUser(user);
         RefreshToken refreshToken = new RefreshToken();
         refreshToken.setUser(user);
-        refreshToken.setToken(UUID.randomUUID()); // Генерируем токен без хеширования
-        refreshToken.setExpiryDate(Instant.now().plusSeconds(expirationMs)); // 7 дней
+        refreshToken.setToken(UUID.randomUUID());
+        refreshToken.setExpiryDate(Instant.now().plusSeconds(expirationMs));
 
-        return refreshTokenRepository.save(refreshToken).getId(); // Возвращаем только ID
+        return refreshTokenRepository.save(refreshToken).getId();
     }
 
 
@@ -41,7 +41,7 @@ public class RefreshTokenService {
         try {
             return refreshTokenRepository.findById(UUID.fromString(id));
         } catch (IllegalArgumentException e) {
-            return Optional.empty(); // Если UUID некорректен, возвращаем пустой Optional
+            return Optional.empty();
         }
     }
 

@@ -2,7 +2,6 @@ package com.microservice.auth_service.config;
 
 import com.microservice.auth_service.security.JwtAuthFilter;
 import com.microservice.auth_service.security.OAuth2SuccessHandler;
-import com.microservice.auth_service.service.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -20,7 +19,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 @RequiredArgsConstructor
 public class SecurityConfig {
     private final JwtAuthFilter jwtAuthFilter;
-    private final OAuth2SuccessHandler oAuth2SuccessHandler; // ✅ Инъекция обработчика
+    private final OAuth2SuccessHandler oAuth2SuccessHandler;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -32,15 +31,13 @@ public class SecurityConfig {
                 .anyRequest().authenticated()
                 .and()
                 .oauth2Login(oauth2 -> oauth2
-                        .successHandler(oAuth2SuccessHandler) // ✅ Используем обработчик для всех OAuth
-                        .redirectionEndpoint(endpoint -> endpoint.baseUri("/oauth2/callback/*")) // ✅ Универсальный редирект
+                        .successHandler(oAuth2SuccessHandler)
+                        .redirectionEndpoint(endpoint -> endpoint.baseUri("/oauth2/callback/*"))
                 )
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
-
-
 
     @Bean
     public AuthenticationManager authenticationManager(AuthenticationConfiguration configuration) throws Exception {
