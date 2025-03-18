@@ -2,9 +2,9 @@ package com.microservice.auth_service.service.user;
 
 import com.microservice.auth_service.model.User;
 import com.microservice.auth_service.repository.UserRepository;
-import com.microservice.auth_service.service.authorization.BackupCodeService;
+import com.microservice.auth_service.service.authentication.BackupCodeService;
 import com.microservice.auth_service.service.util.LocalizationService;
-import com.microservice.auth_service.service.authorization.TwoFactorAuthService;
+import com.microservice.auth_service.service.authentication.TwoFactorAuthService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;

@@ -1,6 +1,6 @@
-package com.microservice.auth_service.service.authorization;
+package com.microservice.auth_service.service.authentication;
 
-import com.microservice.auth_service.dto.AuthRequest;
+import com.microservice.auth_service.dto.auth.AuthRequest;
 import com.microservice.auth_service.exception.AuthorizationExceptionHandler;
 import com.microservice.auth_service.model.RefreshToken;
 import com.microservice.auth_service.model.Role;

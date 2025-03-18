@@ -1,4 +1,4 @@
-package com.microservice.auth_service.service.authorization;
+package com.microservice.auth_service.service.authentication;
 
 import com.microservice.auth_service.security.JwtUtil;
 import com.microservice.auth_service.service.util.LocalizationService;
