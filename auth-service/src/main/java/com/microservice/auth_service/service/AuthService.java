@@ -52,14 +52,27 @@ public class AuthService {
 
     public Map<String, String> login(String email, String password) {
         Optional<User> userOpt = userRepository.findByEmail(email);
-        if (userOpt.isEmpty() || !passwordEncoder.matches(password, userOpt.get().getPassword())) {
+
+        if (userOpt.isEmpty()) {
+            throw new AuthorizationExceptionHandler.InvalidCredentialsException("Неверный логин или пароль");
+        }
+
+        User user = userOpt.get();
+
+        if (user.isOauth()) {
+            throw new AuthorizationExceptionHandler.InvalidCredentialsException("Используйте вход через OAuth");
+        }
+
+        if (!passwordEncoder.matches(password, user.getPassword())) {
             throw new AuthorizationExceptionHandler.InvalidCredentialsException("Неверный логин или пароль");
         }
 
         String token = jwtUtil.generateToken(email);
         String refreshToken = String.valueOf(refreshTokenService.createRefreshToken(userOpt.get()));
+
         return Map.of("token", token, "refreshToken", refreshToken);
     }
+
 
     @Transactional
     public Map<String, String> refreshToken(String refreshTokenUUID) {

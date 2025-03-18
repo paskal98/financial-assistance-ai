@@ -35,9 +35,12 @@ public class JwtUtil {
         secretKey = Keys.hmacShaKeyFor(keyBytes);
     }
 
+    // ToDo - add security by claiming ip and userAgent
     public String generateToken(String email) {
         return Jwts.builder()
                 .setSubject(email)
+//                .claim("ip", ip)
+//                .claim("userAgent", userAgent)
                 .setIssuedAt(new Date())
                 .setExpiration(new Date(System.currentTimeMillis() + expirationMs))
                 .signWith(secretKey, SignatureAlgorithm.HS256)

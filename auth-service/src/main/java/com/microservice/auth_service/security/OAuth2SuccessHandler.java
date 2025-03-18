@@ -1,25 +1,27 @@
 package com.microservice.auth_service.security;
 
+import com.microservice.auth_service.model.Role;
 import com.microservice.auth_service.model.User;
+import com.microservice.auth_service.repository.RoleRepository;
 import com.microservice.auth_service.repository.UserRepository;
-import com.microservice.auth_service.service.RefreshTokenService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
 import org.springframework.stereotype.Component;
 import org.springframework.web.util.UriComponentsBuilder;
-
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.Optional;
+import java.util.Set;
 
 @Component
 @RequiredArgsConstructor
 public class OAuth2SuccessHandler implements org.springframework.security.web.authentication.AuthenticationSuccessHandler {
     private final UserRepository userRepository;
+    private final RoleRepository roleRepository;
     private final JwtUtil jwtUtil;
 
     @Value("${ip.frontend}")
@@ -31,22 +33,34 @@ public class OAuth2SuccessHandler implements org.springframework.security.web.au
             throw new IllegalStateException("Ошибка: OAuth2 токен отсутствует!");
         }
 
+        String provider = token.getAuthorizedClientRegistrationId(); // ✅ Определяем провайдера (google, github, apple)
         String email = token.getPrincipal().getAttribute("email");
         if (email == null) {
-            throw new IllegalStateException("Ошибка: Email не найден в профиле пользователя!");
+            throw new IllegalStateException("Ошибка: Email не найден!");
         }
 
         Optional<User> existingUser = userRepository.findByEmail(email);
+        User user;
+
         if (existingUser.isEmpty()) {
-            User newUser = new User();
-            newUser.setEmail(email);
-            newUser.setPassword("");
-            userRepository.save(newUser);
+            user = new User();
+            user.setEmail(email);
+            user.setPassword("");
+            user.setOauth(true);
+
+            Role userRole = roleRepository.findByName("USER")
+                    .orElseThrow(() -> new RuntimeException("Роль USER не найдена!"));
+            user.setRoles(Set.of(userRole));
+
+            userRepository.save(user);
+        } else {
+            user = existingUser.get();
         }
 
         String jwtToken = jwtUtil.generateToken(email);
 
-        String targetUrl = UriComponentsBuilder.fromUriString(frontendUrlBase+"/oauth-success")
+        String targetUrl = UriComponentsBuilder.fromUriString(frontendUrlBase + "/oauth-success")
+                .queryParam("provider", provider) // ✅ Теперь фронтенд будет знать, через какой OAuth вошел пользователь
                 .queryParam("token", jwtToken)
                 .build().toUriString();
 

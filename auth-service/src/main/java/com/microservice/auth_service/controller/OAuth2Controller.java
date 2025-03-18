@@ -1,7 +1,6 @@
 package com.microservice.auth_service.controller;
 
 import com.microservice.auth_service.security.JwtUtil;
-import com.microservice.auth_service.service.RefreshTokenService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
@@ -15,9 +14,8 @@ import java.util.Map;
 public class OAuth2Controller {
     private final JwtUtil jwtUtil;
 
-
-    @GetMapping("/callback/google")
-    public Map<String, String> oauthCallback(@AuthenticationPrincipal OAuth2AuthenticationToken token) {
+    @GetMapping("/callback/{provider}")
+    public Map<String, String> oauthCallback(@AuthenticationPrincipal OAuth2AuthenticationToken token, @PathVariable String provider) {
         if (token == null) {
             throw new IllegalStateException("Ошибка: OAuth2 токен отсутствует!");
         }
@@ -29,9 +27,8 @@ public class OAuth2Controller {
 
         String jwtToken = jwtUtil.generateToken(email);
 
-
         return Map.of(
-                "provider", "google",
+                "provider", provider,
                 "email", email,
                 "token", jwtToken
         );

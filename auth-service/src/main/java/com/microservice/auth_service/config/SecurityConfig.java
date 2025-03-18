@@ -32,8 +32,8 @@ public class SecurityConfig {
                 .anyRequest().authenticated()
                 .and()
                 .oauth2Login(oauth2 -> oauth2
-                        .successHandler(oAuth2SuccessHandler) // Используем кастомный обработчик
-                        .redirectionEndpoint(endpoint -> endpoint.baseUri("/oauth2/callback/google")) // ✅ Исправленный редирект
+                        .successHandler(oAuth2SuccessHandler) // ✅ Используем обработчик для всех OAuth
+                        .redirectionEndpoint(endpoint -> endpoint.baseUri("/oauth2/callback/*")) // ✅ Универсальный редирект
                 )
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
