@@ -1,5 +1,6 @@
 package com.microservice.auth_service.service;
 
+import com.microservice.auth_service.dto.AuthRequest;
 import com.microservice.auth_service.exception.AuthorizationExceptionHandler;
 import com.microservice.auth_service.model.RefreshToken;
 import com.microservice.auth_service.model.Role;
@@ -26,6 +27,7 @@ public class AuthService {
     private final JwtUtil jwtUtil;
     private final RefreshTokenService refreshTokenService;
     private final TwoFactorAuthService twoFactorAuthService;
+    private final BackupCodeService backupCodeService;
 
     public Map<String, String> register(String email, String password) {
         if (userRepository.findByEmail(email).isPresent()) {
@@ -51,8 +53,8 @@ public class AuthService {
     }
 
 
-    public Map<String, String> login(String email, String password, Integer otpCode) {
-        Optional<User> userOpt = userRepository.findByEmail(email);
+    public Map<String, String> login(AuthRequest request) {
+        Optional<User> userOpt = userRepository.findByEmail(request.getEmail());
 
         if (userOpt.isEmpty()) {
             throw new AuthorizationExceptionHandler.InvalidCredentialsException("Неверный логин или пароль");
@@ -64,17 +66,25 @@ public class AuthService {
             throw new AuthorizationExceptionHandler.InvalidCredentialsException("Используйте вход через OAuth");
         }
 
-        if (!passwordEncoder.matches(password, user.getPassword())) {
+        if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
             throw new AuthorizationExceptionHandler.InvalidCredentialsException("Неверный логин или пароль");
         }
 
         if (user.is2FAEnabled()) {
-            if (otpCode == null || !twoFactorAuthService.verifyCode(user, otpCode)) {
-                throw new AuthorizationExceptionHandler.InvalidCredentialsException("Неверный 2FA-код");
+            if (request.getBackupCode() != null) {
+                if (!backupCodeService.validateBackupCode(user, request.getBackupCode())) {
+                    throw new AuthorizationExceptionHandler.InvalidCredentialsException("Неверный резервный код");
+                }
+            } else if (request.getOtpCode() != null) {
+                if (!twoFactorAuthService.verifyCode(user, request.getOtpCode())) {
+                    throw new AuthorizationExceptionHandler.InvalidCredentialsException("Неверный 2FA-код");
+                }
+            } else {
+                throw new AuthorizationExceptionHandler.InvalidCredentialsException("Требуется 2FA-код или резервный код");
             }
         }
 
-        String token = jwtUtil.generateToken(email);
+        String token = jwtUtil.generateToken(user.getEmail());
         String refreshToken = String.valueOf(refreshTokenService.createRefreshToken(user));
 
         return Map.of("token", token, "refreshToken", refreshToken);

@@ -20,11 +20,16 @@ CREATE TABLE user_roles (
                             PRIMARY KEY (user_id, role_id)
 );
 
-
 CREATE TABLE refresh_tokens (
                                 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                                 user_id UUID REFERENCES users(id) ON DELETE CASCADE,
                                 token UUID UNIQUE NOT NULL,
                                 expiry_date TIMESTAMP NOT NULL,
                                 FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE backup_codes (
+                              id SERIAL PRIMARY KEY,
+                              user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+                              code_hash VARCHAR(255) NOT NULL
 );

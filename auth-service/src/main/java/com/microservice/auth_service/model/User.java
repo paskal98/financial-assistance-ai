@@ -2,6 +2,8 @@ package com.microservice.auth_service.model;
 
 import jakarta.persistence.*;
 import lombok.*;
+
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
@@ -38,4 +40,9 @@ public class User {
 
     @Column(name = "two_fa_secret")
     private String twoFASecret;
+
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(name = "backup_codes", joinColumns = @JoinColumn(name = "user_id"))
+    @Column(name = "code_hash")
+    private List<String> backupCodes;
 }
