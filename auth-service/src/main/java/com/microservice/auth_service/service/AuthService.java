@@ -1,7 +1,9 @@
 package com.microservice.auth_service.service;
 
 import com.microservice.auth_service.model.RefreshToken;
+import com.microservice.auth_service.model.Role;
 import com.microservice.auth_service.model.User;
+import com.microservice.auth_service.repository.RoleRepository;
 import com.microservice.auth_service.repository.UserRepository;
 import com.microservice.auth_service.security.JwtUtil;
 import lombok.RequiredArgsConstructor;
@@ -11,11 +13,13 @@ import org.springframework.stereotype.Service;
 import java.time.Instant;
 import java.util.Optional;
 import java.util.Map;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
 public class AuthService {
     private final UserRepository userRepository;
+    private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
     private final RefreshTokenService refreshTokenService;
@@ -24,16 +28,25 @@ public class AuthService {
         if (userRepository.findByEmail(email).isPresent()) {
             throw new RuntimeException("Email уже используется");
         }
+
+        // Ищем роль USER
+        Role userRole = roleRepository.findByName("USER")
+                .orElseThrow(() -> new RuntimeException("Роль USER не найдена в БД"));
+
+        // Создаем пользователя
         User user = new User();
         user.setEmail(email);
         user.setPassword(passwordEncoder.encode(password));
+        user.setRoles(Set.of(userRole));
+
         userRepository.save(user);
 
         String token = jwtUtil.generateToken(email);
-        String refreshToken = String.valueOf(refreshTokenService.createRefreshToken(user).getId());
+        String refreshToken = String.valueOf(refreshTokenService.createRefreshToken(user));
 
         return Map.of("token", token, "refreshToken", refreshToken);
     }
+
 
     public Map<String, String> login(String email, String password) {
         Optional<User> userOpt = userRepository.findByEmail(email);
@@ -42,8 +55,7 @@ public class AuthService {
         }
 
         String token = jwtUtil.generateToken(email);
-        String refreshToken = String.valueOf(refreshTokenService.createRefreshToken(userOpt.get()).getId());
-
+        String refreshToken = String.valueOf(refreshTokenService.createRefreshToken(userOpt.get()));
         return Map.of("token", token, "refreshToken", refreshToken);
     }
 
