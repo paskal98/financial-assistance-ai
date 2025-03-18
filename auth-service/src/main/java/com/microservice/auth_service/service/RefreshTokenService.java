@@ -30,7 +30,7 @@ public class RefreshTokenService {
         refreshTokenRepository.deleteByUser(user); // Удаляем старый refresh-токен
         RefreshToken refreshToken = new RefreshToken();
         refreshToken.setUser(user);
-        refreshToken.setToken(passwordEncoder.encode(UUID.randomUUID().toString())); // Хешируем токен
+        refreshToken.setToken(UUID.randomUUID()); // Генерируем токен без хеширования
         refreshToken.setExpiryDate(Instant.now().plusSeconds(expirationMs)); // 7 дней
 
         return refreshTokenRepository.save(refreshToken).getId(); // Возвращаем только ID

@@ -9,6 +9,7 @@ import com.microservice.auth_service.security.JwtUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.Optional;
@@ -59,6 +60,7 @@ public class AuthService {
         return Map.of("token", token, "refreshToken", refreshToken);
     }
 
+    @Transactional
     public Map<String, String> refreshToken(String refreshTokenUUID) {
         // Ищем токен в базе
         Optional<RefreshToken> tokenOpt = refreshTokenService.findById(refreshTokenUUID);

@@ -21,6 +21,7 @@ CREATE TABLE user_roles (
 CREATE TABLE refresh_tokens (
                                 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                                 user_id UUID REFERENCES users(id) ON DELETE CASCADE,
-                                token VARCHAR(512) NOT NULL,
-                                expiry_date TIMESTAMP NOT NULL
+                                token UUID UNIQUE NOT NULL,
+                                expiry_date TIMESTAMP NOT NULL,
+                                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
