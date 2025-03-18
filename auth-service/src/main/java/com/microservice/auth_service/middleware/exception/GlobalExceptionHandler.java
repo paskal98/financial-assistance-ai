@@ -1,4 +1,4 @@
-package com.microservice.auth_service.exception;
+package com.microservice.auth_service.middleware.exception;
 
 import com.microservice.auth_service.service.util.LocalizationService;
 import lombok.RequiredArgsConstructor;

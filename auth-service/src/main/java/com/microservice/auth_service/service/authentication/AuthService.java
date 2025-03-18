@@ -1,7 +1,7 @@
 package com.microservice.auth_service.service.authentication;
 
 import com.microservice.auth_service.dto.auth.AuthRequest;
-import com.microservice.auth_service.exception.AuthorizationExceptionHandler;
+import com.microservice.auth_service.middleware.exception.AuthorizationExceptionHandler;
 import com.microservice.auth_service.model.RefreshToken;
 import com.microservice.auth_service.model.Role;
 import com.microservice.auth_service.model.User;

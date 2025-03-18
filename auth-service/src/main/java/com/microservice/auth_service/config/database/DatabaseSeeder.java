@@ -1,4 +1,4 @@
-package com.microservice.auth_service.config;
+package com.microservice.auth_service.config.database;
 
 import com.microservice.auth_service.model.Role;
 import com.microservice.auth_service.repository.RoleRepository;

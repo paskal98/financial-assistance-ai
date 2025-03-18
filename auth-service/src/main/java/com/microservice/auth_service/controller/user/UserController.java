@@ -1,4 +1,4 @@
-package com.microservice.auth_service.controller;
+package com.microservice.auth_service.controller.user;
 
 import com.microservice.auth_service.model.User;
 import com.microservice.auth_service.service.user.UserService;

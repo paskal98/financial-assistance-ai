@@ -1,4 +1,4 @@
-package com.microservice.auth_service.exception;
+package com.microservice.auth_service.middleware.exception;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;

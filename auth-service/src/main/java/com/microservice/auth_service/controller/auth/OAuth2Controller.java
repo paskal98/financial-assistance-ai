@@ -1,4 +1,4 @@
-package com.microservice.auth_service.controller;
+package com.microservice.auth_service.controller.auth;
 
 import com.microservice.auth_service.service.authentication.OAuth2Service;
 import lombok.RequiredArgsConstructor;

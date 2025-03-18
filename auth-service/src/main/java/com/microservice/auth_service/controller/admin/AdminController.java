@@ -1,4 +1,4 @@
-package com.microservice.auth_service.controller;
+package com.microservice.auth_service.controller.admin;
 
 import com.microservice.auth_service.dto.user.AddUserRoleRequest;
 import com.microservice.auth_service.dto.user.RemoveUserRoleRequest;

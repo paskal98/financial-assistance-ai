@@ -1,5 +1,6 @@
-package com.microservice.auth_service.security;
+package com.microservice.auth_service.middleware.filter;
 
+import com.microservice.auth_service.security.JwtUtil;
 import com.microservice.auth_service.service.user.CustomUserDetailsService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;

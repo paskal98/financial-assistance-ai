@@ -1,4 +1,4 @@
-package com.microservice.auth_service.controller;
+package com.microservice.auth_service.controller.auth;
 
 import com.microservice.auth_service.dto.auth.AuthRequest;
 import com.microservice.auth_service.dto.auth.RefreshTokenRequest;
