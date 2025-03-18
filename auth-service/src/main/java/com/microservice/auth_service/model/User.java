@@ -32,4 +32,10 @@ public class User {
             inverseJoinColumns = @JoinColumn(name = "role_id")
     )
     private Set<Role> roles;
+
+    @Column(name = "is_2fa_enabled", nullable = false)
+    private boolean is2FAEnabled = false;
+
+    @Column(name = "two_fa_secret")
+    private String twoFASecret;
 }

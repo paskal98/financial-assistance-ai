@@ -25,6 +25,7 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
     private final RefreshTokenService refreshTokenService;
+    private final TwoFactorAuthService twoFactorAuthService;
 
     public Map<String, String> register(String email, String password) {
         if (userRepository.findByEmail(email).isPresent()) {
@@ -50,7 +51,7 @@ public class AuthService {
     }
 
 
-    public Map<String, String> login(String email, String password) {
+    public Map<String, String> login(String email, String password, Integer otpCode) {
         Optional<User> userOpt = userRepository.findByEmail(email);
 
         if (userOpt.isEmpty()) {
@@ -67,11 +68,18 @@ public class AuthService {
             throw new AuthorizationExceptionHandler.InvalidCredentialsException("Неверный логин или пароль");
         }
 
+        if (user.is2FAEnabled()) {
+            if (otpCode == null || !twoFactorAuthService.verifyCode(user, otpCode)) {
+                throw new AuthorizationExceptionHandler.InvalidCredentialsException("Неверный 2FA-код");
+            }
+        }
+
         String token = jwtUtil.generateToken(email);
-        String refreshToken = String.valueOf(refreshTokenService.createRefreshToken(userOpt.get()));
+        String refreshToken = String.valueOf(refreshTokenService.createRefreshToken(user));
 
         return Map.of("token", token, "refreshToken", refreshToken);
     }
+
 
 
     @Transactional

@@ -16,4 +16,6 @@ public class AuthRequest {
     @NotBlank(message = "Пароль не должен быть пустым")
     @Size(min = 6, max = 30, message = "Пароль должен содержать от 6 до 30 символов")
     private String password;
+
+    private Integer otpCode;
 }

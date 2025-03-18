@@ -3,6 +3,8 @@ CREATE TABLE users (
                        email VARCHAR(255) UNIQUE NOT NULL,
                        password VARCHAR(255) NOT NULL,
                        oauth BOOLEAN DEFAULT FALSE NOT NULL,
+                       is_2fa_enabled BOOLEAN DEFAULT FALSE NOT NULL,
+                       two_fa_secret VARCHAR(255),
                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
