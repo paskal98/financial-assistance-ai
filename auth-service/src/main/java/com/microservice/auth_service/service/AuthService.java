@@ -1,5 +1,6 @@
 package com.microservice.auth_service.service;
 
+import com.microservice.auth_service.exception.AuthorizationExceptionHandler;
 import com.microservice.auth_service.model.RefreshToken;
 import com.microservice.auth_service.model.Role;
 import com.microservice.auth_service.model.User;
@@ -27,12 +28,12 @@ public class AuthService {
 
     public Map<String, String> register(String email, String password) {
         if (userRepository.findByEmail(email).isPresent()) {
-            throw new RuntimeException("Email уже используется");
+            throw new AuthorizationExceptionHandler.UserAlreadyExistsException("Email уже используется");
         }
 
         // Ищем роль USER
         Role userRole = roleRepository.findByName("USER")
-                .orElseThrow(() -> new RuntimeException("Роль USER не найдена в БД"));
+                .orElseThrow(() -> new AuthorizationExceptionHandler.RoleNotFoundException("Роль USER не найдена в БД"));
 
         // Создаем пользователя
         User user = new User();
@@ -52,7 +53,7 @@ public class AuthService {
     public Map<String, String> login(String email, String password) {
         Optional<User> userOpt = userRepository.findByEmail(email);
         if (userOpt.isEmpty() || !passwordEncoder.matches(password, userOpt.get().getPassword())) {
-            throw new RuntimeException("Неверный логин или пароль");
+            throw new AuthorizationExceptionHandler.InvalidCredentialsException("Неверный логин или пароль");
         }
 
         String token = jwtUtil.generateToken(email);

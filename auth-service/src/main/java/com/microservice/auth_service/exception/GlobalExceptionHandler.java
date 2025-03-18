@@ -33,4 +33,20 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Map<String, String>> handleJwtValidationException(JwtValidationException ex) {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", ex.getMessage()));
     }
+
+    @ExceptionHandler(AuthorizationExceptionHandler.UserAlreadyExistsException.class)
+    public ResponseEntity<Map<String, String>> handleUserExists(AuthorizationExceptionHandler.UserAlreadyExistsException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("error", ex.getMessage()));
+    }
+
+    @ExceptionHandler(AuthorizationExceptionHandler.InvalidCredentialsException.class)
+    public ResponseEntity<Map<String, String>> handleInvalidCredentials(AuthorizationExceptionHandler.InvalidCredentialsException ex) {
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", ex.getMessage()));
+    }
+
+    @ExceptionHandler(AuthorizationExceptionHandler.RoleNotFoundException.class)
+    public ResponseEntity<Map<String, String>> handleRoleNotFound(AuthorizationExceptionHandler.RoleNotFoundException ex) {
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("error", ex.getMessage()));
+    }
+
 }
