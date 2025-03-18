@@ -134,6 +134,59 @@ public class RefreshToken {
 }
 ```
 
+## 📦 Docker & Build Instructions
+### 🔹 **Build & Run with Docker**
+#### **1. Build the JAR file**
+```sh
+./gradlew clean build
+```
+
+#### **2. Create Docker image**
+```sh
+docker build -t auth-service .
+```
+
+#### **3. Run the container**
+```sh
+docker run -p 8081:8081 --name auth-service auth-service
+```
+
+#### **4. Run with Docker Compose**
+Create `docker-compose.yml`:
+```yaml
+version: '3.8'
+services:
+  auth-service:
+    image: auth-service
+    ports:
+      - "8081:8081"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/auth_db
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+    depends_on:
+      - db
+  db:
+    image: postgres
+    restart: always
+    environment:
+      POSTGRES_DB: auth_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+```
+Run the application:
+```sh
+docker-compose up -d
+```
+
+## 🔒 Security
+- JWT tokens (access and refresh)
+- **BCrypt** password encryption
+- **Spring Security** for access control
+- OAuth2 for third-party authentication
+- 2FA with QR codes and OTP (Google Authenticator)
+
+
 ## 🔒 Key Classes and Responsibilities
 ### 📌 **Controllers** (`controller`)
 - **AuthController** – Handles login, registration, token refresh.
