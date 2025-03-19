@@ -1,11 +1,13 @@
 package com.miscroservice.transaction_service.model.dto;
 
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
 import java.util.UUID;
 
 @Data
+@NoArgsConstructor
 public class TransactionResponse {
 
     private UUID id;
