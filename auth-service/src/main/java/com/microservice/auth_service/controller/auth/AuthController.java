@@ -1,7 +1,7 @@
 package com.microservice.auth_service.controller.auth;
 
-import com.microservice.auth_service.dto.auth.AuthRequest;
-import com.microservice.auth_service.dto.auth.RefreshTokenRequest;
+import com.microservice.auth_service.model.dto.auth.AuthRequest;
+import com.microservice.auth_service.model.dto.auth.RefreshTokenRequest;
 import com.microservice.auth_service.service.authentication.AuthService;
 import com.microservice.auth_service.service.util.LocalizationService;
 import jakarta.validation.Valid;

@@ -1,4 +1,4 @@
-package com.microservice.auth_service.dto.auth;
+package com.microservice.auth_service.model.dto.auth;
 
 import jakarta.validation.constraints.NotBlank;
 import lombok.Getter;

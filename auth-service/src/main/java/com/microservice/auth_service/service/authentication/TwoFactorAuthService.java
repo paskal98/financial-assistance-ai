@@ -1,6 +1,6 @@
 package com.microservice.auth_service.service.authentication;
 
-import com.microservice.auth_service.model.User;
+import com.microservice.auth_service.model.entity.User;
 import com.microservice.auth_service.repository.UserRepository;
 import com.microservice.auth_service.service.util.LocalizationService;
 import com.microservice.auth_service.service.util.QRCodeService;

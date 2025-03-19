@@ -1,6 +1,6 @@
 package com.microservice.auth_service.config.database;
 
-import com.microservice.auth_service.model.Role;
+import com.microservice.auth_service.model.entity.Role;
 import com.microservice.auth_service.repository.RoleRepository;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;

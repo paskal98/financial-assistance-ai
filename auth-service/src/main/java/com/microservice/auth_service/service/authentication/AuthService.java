@@ -1,10 +1,10 @@
 package com.microservice.auth_service.service.authentication;
 
-import com.microservice.auth_service.dto.auth.AuthRequest;
+import com.microservice.auth_service.model.dto.auth.AuthRequest;
 import com.microservice.auth_service.middleware.exception.AuthorizationExceptionHandler;
-import com.microservice.auth_service.model.RefreshToken;
-import com.microservice.auth_service.model.Role;
-import com.microservice.auth_service.model.User;
+import com.microservice.auth_service.model.entity.RefreshToken;
+import com.microservice.auth_service.model.entity.Role;
+import com.microservice.auth_service.model.entity.User;
 import com.microservice.auth_service.repository.RoleRepository;
 import com.microservice.auth_service.repository.UserRepository;
 import com.microservice.auth_service.security.JwtUtil;

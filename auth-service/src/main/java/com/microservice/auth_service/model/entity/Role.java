@@ -1,4 +1,4 @@
-package com.microservice.auth_service.model;
+package com.microservice.auth_service.model.entity;
 
 import jakarta.persistence.*;
 import lombok.*;

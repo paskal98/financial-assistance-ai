@@ -1,7 +1,7 @@
 package com.microservice.auth_service.service.admin;
 
-import com.microservice.auth_service.model.Role;
-import com.microservice.auth_service.model.User;
+import com.microservice.auth_service.model.entity.Role;
+import com.microservice.auth_service.model.entity.User;
 import com.microservice.auth_service.repository.RoleRepository;
 import com.microservice.auth_service.repository.UserRepository;
 import com.microservice.auth_service.service.util.LocalizationService;

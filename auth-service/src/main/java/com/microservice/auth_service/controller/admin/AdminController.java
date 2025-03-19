@@ -1,8 +1,8 @@
 package com.microservice.auth_service.controller.admin;
 
-import com.microservice.auth_service.dto.user.AddUserRoleRequest;
-import com.microservice.auth_service.dto.user.RemoveUserRoleRequest;
-import com.microservice.auth_service.model.User;
+import com.microservice.auth_service.model.dto.user.AddUserRoleRequest;
+import com.microservice.auth_service.model.dto.user.RemoveUserRoleRequest;
+import com.microservice.auth_service.model.entity.User;
 import com.microservice.auth_service.service.admin.AdminService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;

@@ -2,8 +2,8 @@ package com.microservice.auth_service.service.authentication;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.microservice.auth_service.model.RefreshToken;
-import com.microservice.auth_service.model.User;
+import com.microservice.auth_service.model.entity.RefreshToken;
+import com.microservice.auth_service.model.entity.User;
 import com.microservice.auth_service.repository.RefreshTokenRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;

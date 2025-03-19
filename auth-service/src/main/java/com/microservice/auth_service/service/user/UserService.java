@@ -1,6 +1,6 @@
 package com.microservice.auth_service.service.user;
 
-import com.microservice.auth_service.model.User;
+import com.microservice.auth_service.model.entity.User;
 import com.microservice.auth_service.repository.UserRepository;
 import com.microservice.auth_service.service.authentication.BackupCodeService;
 import com.microservice.auth_service.service.util.LocalizationService;
