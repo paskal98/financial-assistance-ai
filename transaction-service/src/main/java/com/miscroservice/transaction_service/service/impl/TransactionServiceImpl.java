@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -135,10 +136,18 @@ public class TransactionServiceImpl implements TransactionService {
                         Collectors.reducing(BigDecimal.ZERO, Transaction::getAmount, BigDecimal::add)
                 ));
 
+        // Добавляем тренды по месяцам
+        Map<String, BigDecimal> byMonth = transactions.stream()
+                .collect(Collectors.groupingBy(
+                        t -> t.getDate().atZone(ZoneId.systemDefault()).toLocalDate().getMonth().toString(),
+                        Collectors.reducing(BigDecimal.ZERO, Transaction::getAmount, BigDecimal::add)
+                ));
+
         TransactionStatsResponse stats = new TransactionStatsResponse();
         stats.setTotalIncome(totalIncome);
         stats.setTotalExpense(totalExpense);
         stats.setByCategory(byCategory);
+        stats.setByMonth(byMonth);
 
         redisTemplate.opsForValue().set(cacheKey, stats, 10, TimeUnit.MINUTES);
         return stats;
