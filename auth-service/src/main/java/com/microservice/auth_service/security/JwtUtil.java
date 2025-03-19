@@ -11,6 +11,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.Collection;
 import java.util.Date;
+import java.util.UUID;
 import java.util.function.Function;
 import javax.crypto.SecretKey;
 import lombok.extern.slf4j.Slf4j;
@@ -36,9 +37,10 @@ public class JwtUtil {
     }
 
     // ToDo - add security by claiming ip and userAgent
-    public String generateToken(String email) {
+    public String generateToken(String email, UUID userId) {
         return Jwts.builder()
                 .setSubject(email)
+                .claim("userId", userId.toString())
 //                .claim("ip", ip)
 //                .claim("userAgent", userAgent)
                 .setIssuedAt(new Date())
