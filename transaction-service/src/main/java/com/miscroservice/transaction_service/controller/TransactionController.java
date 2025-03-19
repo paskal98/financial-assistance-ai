@@ -5,6 +5,9 @@ import com.miscroservice.transaction_service.model.dto.TransactionResponse;
 import com.miscroservice.transaction_service.model.dto.TransactionStatsResponse;
 import com.miscroservice.transaction_service.service.TransactionService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -30,11 +33,17 @@ public class TransactionController {
     }
 
     @GetMapping
-    public ResponseEntity<List<TransactionResponse>> getTransactions(
+    public ResponseEntity<Page<TransactionResponse>> getTransactions(
             @AuthenticationPrincipal String userId,
             @RequestParam(required = false) String startDate,
-            @RequestParam(required = false) String endDate) {
-        List<TransactionResponse> transactions = transactionService.getTransactions(UUID.fromString(userId), startDate, endDate);
+            @RequestParam(required = false) String endDate,
+            @RequestParam(required = false) String category,
+            @RequestParam(required = false) String type,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        Pageable pageable = PageRequest.of(page, size);
+        Page<TransactionResponse> transactions = transactionService.getTransactions(
+                UUID.fromString(userId), startDate, endDate, category, type, pageable);
         return ResponseEntity.ok(transactions);
     }
 

@@ -12,4 +12,5 @@ public class TransactionStatsResponse {
     private BigDecimal totalIncome;
     private BigDecimal totalExpense;
     private Map<String, BigDecimal> byCategory;
+    private Map<String, BigDecimal> byMonth;
 }
