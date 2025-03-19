@@ -45,9 +45,9 @@ public class AuthService {
         user.setPassword(passwordEncoder.encode(password));
         user.setRoles(Set.of(userRole));
 
-        userRepository.save(user);
+        user = userRepository.save(user);
 
-        String token = jwtUtil.generateToken(email);
+        String token = jwtUtil.generateToken(email, user.getId());
         String refreshToken = String.valueOf(refreshTokenService.createRefreshToken(user));
 
         return Map.of(
@@ -88,7 +88,7 @@ public class AuthService {
             }
         }
 
-        String token = jwtUtil.generateToken(user.getEmail());
+        String token = jwtUtil.generateToken(user.getEmail(), user.getId());
         String refreshToken = String.valueOf(refreshTokenService.createRefreshToken(user));
 
         return Map.of(
@@ -117,7 +117,7 @@ public class AuthService {
             throw new AuthorizationExceptionHandler.InvalidCredentialsException(localizationService.getMessage("error.refresh_token.invalid", locale));
         }
 
-        String newAccessToken = jwtUtil.generateToken(user.getEmail());
+        String newAccessToken = jwtUtil.generateToken(user.getEmail(), user.getId());
 
         return Map.of(
                 "token", newAccessToken,

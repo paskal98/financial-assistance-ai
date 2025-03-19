@@ -52,12 +52,12 @@ public class OAuth2SuccessHandler implements org.springframework.security.web.au
                     .orElseThrow(() -> new RuntimeException("Роль USER не найдена!"));
             user.setRoles(Set.of(userRole));
 
-            userRepository.save(user);
+            user = userRepository.save(user);
         } else {
             user = existingUser.get();
         }
 
-        String jwtToken = jwtUtil.generateToken(email);
+        String jwtToken = jwtUtil.generateToken(email, user.getId());
 
         String targetUrl = UriComponentsBuilder.fromUriString(frontendUrlBase + "/oauth-success")
                 .queryParam("provider", provider)

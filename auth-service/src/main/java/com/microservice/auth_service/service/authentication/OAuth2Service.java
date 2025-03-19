@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.Locale;
 import java.util.Map;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -25,7 +26,12 @@ public class OAuth2Service {
             throw new IllegalStateException(localizationService.getMessage("error.oauth.email_not_found", locale));
         }
 
-        String jwtToken = jwtUtil.generateToken(email);
+        UUID uuid = token.getPrincipal().getAttribute("userId");
+        if (uuid == null) {
+            throw new IllegalStateException(localizationService.getMessage("error.oauth.email_not_found", locale));
+        }
+
+        String jwtToken = jwtUtil.generateToken(email,uuid);
 
         return Map.of(
                 "message", localizationService.getMessage("success.oauth.login", locale, provider),
