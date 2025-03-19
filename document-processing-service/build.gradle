@@ -1,26 +1,38 @@
 plugins {
+	id 'org.springframework.boot' version '3.2.3'
+	id 'io.spring.dependency-management' version '1.1.4'
 	id 'java'
-	id 'org.springframework.boot' version '3.4.3'
-	id 'io.spring.dependency-management' version '1.1.7'
 }
 
-group = 'com.microservice'
+group = 'com.miscroservice'
 version = '0.0.1-SNAPSHOT'
-
-java {
-	toolchain {
-		languageVersion = JavaLanguageVersion.of(17)
-	}
-}
+sourceCompatibility = '17'
 
 repositories {
 	mavenCentral()
 }
 
 dependencies {
-	implementation 'org.springframework.boot:spring-boot-starter'
+	implementation 'org.springframework.boot:spring-boot-starter-web'
+	implementation 'org.springframework.boot:spring-boot-starter-validation'
+
+	implementation 'org.springframework.kafka:spring-kafka'
+
+	implementation 'org.openpnp:opencv:4.7.0-0'
+
+	implementation 'net.sourceforge.tess4j:tess4j:5.10.0'
+
+	implementation 'com.theokanning.openai-gpt3-java:service:0.18.2'
+
+	implementation 'ch.qos.logback:logback-classic'
+
+	implementation 'io.minio:minio:8.5.7'
+
+	compileOnly("org.projectlombok:lombok")
+	annotationProcessor("org.projectlombok:lombok")
+
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
-	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+	testImplementation 'org.springframework.kafka:spring-kafka-test'
 }
 
 tasks.named('test') {
