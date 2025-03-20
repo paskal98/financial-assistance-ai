@@ -17,6 +17,7 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
@@ -67,8 +68,8 @@ public class TransactionServiceImpl implements TransactionService {
             return cachedTransactions;
         }
 
-        Instant start = startDate != null ? Instant.parse(startDate) : null;
-        Instant end = endDate != null ? Instant.parse(endDate) : null;
+        LocalDate start = startDate != null ? LocalDate.parse(startDate) : null;
+        LocalDate end = endDate != null ? LocalDate.parse(endDate) : null;
         Page<Transaction> transactions = transactionRepository.findByFilters(userId, start, end, category, type, pageable);
         Page<TransactionResponse> response = transactions.map(this::mapToResponse);
 

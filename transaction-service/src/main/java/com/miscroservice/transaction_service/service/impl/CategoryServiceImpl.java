@@ -21,8 +21,9 @@ public class CategoryServiceImpl implements CategoryService {
     @Override
     public List<CategoryResponse> getCategories(String type) {
         String cacheKey = CATEGORIES_CACHE_PREFIX + (type != null ? type : "all");
-        @SuppressWarnings("unchecked")
-        List<CategoryResponse> cachedCategories = (List<CategoryResponse>) redisTemplate.opsForValue().get(cacheKey);
+
+        // Используем TypeReference для корректного извлечения списка
+        List<CategoryResponse> cachedCategories = getFromCache(cacheKey);
 
         if (cachedCategories != null) {
             return cachedCategories;
@@ -39,7 +40,18 @@ public class CategoryServiceImpl implements CategoryService {
                     .toList();
         }
 
-        redisTemplate.opsForValue().set(cacheKey, categories, 1, TimeUnit.HOURS); // Кэш на час
+        if (!categories.isEmpty()) { // Не кэшируем пустые списки
+            redisTemplate.opsForValue().set(cacheKey, categories, 1, TimeUnit.HOURS);
+        }
         return categories;
+    }
+
+    // Метод для безопасного извлечения списка из Redis
+    private List<CategoryResponse> getFromCache(String cacheKey) {
+        Object cachedData = redisTemplate.opsForValue().get(cacheKey);
+        if (cachedData instanceof List<?>) {
+            return (List<CategoryResponse>) cachedData;
+        }
+        return null;
     }
 }
