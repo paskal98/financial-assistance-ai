@@ -26,15 +26,13 @@ public class DocumentProcessingConsumer {
     @KafkaListener(topics = "document-processing-queue", groupId = "doc-processing-group")
     public void processDocument(String message) {
         try {
-            String[] parts = message.split("\\|", 2);
+            String[] parts = message.split("\\|", 4);
             String filePath = parts[0];
-            String date = parts.length > 1 ? parts[1] : null;
+            String userId = parts[1];
+            String documentId = parts[2];
+            String date = parts.length > 3 ? parts[3] : null;
 
             logger.info("Processing document: {}", filePath);
-
-            // For now, hardcode userId and documentId (replace with actual logic)
-            UUID userId = UUID.randomUUID(); // Replace with real userId resolution
-            UUID documentId = UUID.randomUUID(); // Generate or extract from context
 
             // OCR
             String ocrText = ocrService.extractTextFromImage(filePath);
@@ -46,7 +44,7 @@ public class DocumentProcessingConsumer {
             }
 
             // Send to Kafka with userId and documentId
-            items.forEach(item -> transactionProducerService.sendTransaction(item, userId, documentId));
+            items.forEach(item -> transactionProducerService.sendTransaction(item, UUID.fromString(userId), UUID.fromString(documentId)));
 
             logger.info("Document processed successfully: {}", filePath);
         } catch (Exception e) {

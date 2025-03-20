@@ -14,8 +14,10 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -29,7 +31,7 @@ public class AiClassificationService {
     private final OpenAiService openAiService;
     private final ObjectMapper objectMapper = new ObjectMapper(); // For JSON parsing
 
-    @Value("${openai.model:gpt-3.5-turbo}")
+    @Value("${openai.model:gpt-4o-mini}")
     private String model;
 
     @Value("${openai.max-tokens:500}")
@@ -74,8 +76,8 @@ public class AiClassificationService {
 
     private String buildClassificationPrompt(String ocrText) {
         return """
-            You are an expert in receipt analysis. Given the following text extracted from a receipt, classify each item into a category (choose from the provided list) and extract the price, date, description, payment method. If any field is missing, estimate it reasonably or set it to null. Return the result as a JSON array of objects with fields: "name", "category", "price", "date", "description", "paymentMethod". Ensure the output is valid JSON.
-
+            You are an expert in receipt analysis. Given the following text extracted from a receipt, classify each item into a category (choose from the provided list) and extract the type, price, date, description, payment method. If any field is missing, estimate it reasonably or set it to null. Return the result as a JSON array of objects with fields: "name", "category", "type", "price", "date", "description", "paymentMethod". Ensure the output is valid JSON.
+            
             Categories:
             - Groceries
             - Restaurants
@@ -111,15 +113,29 @@ public class AiClassificationService {
             Type of it:
             - EXPENSE
             - INCOME
+            
+            Payment type:
+            - Credit Card
+            - Cash
 
             Receipt text:
             %s
 
+            ### **Important Rules:**
+            1. If the receipt contains an **itemized list**, only return the individual items and **exclude the total amount**
+            2. If there are **no items**, return only the **total amount** as a single transaction.
+            
             Example output:
             [
                 {"name": "Milk", "type": "EXPENSE", "category": "Groceries", "price": 2.50, "date": "2024-03-20T12:00:00Z", "description": "Organic milk", "paymentMethod": "Credit Card" },
                 {"name": "Bus Ticket", "type": "EXPENSE", "category": "Transport", "price": 1.20, "date": "2024-03-20T12:30:00Z", "description": "City bus", "paymentMethod": "Cash"}
             ]
+            
+            If it not type of receipt in text, or it seems to be nonsense text give output
+            [
+                {"name": "NONSENSE"}
+            ]
+            
             """.formatted(ocrText);
     }
 
@@ -127,11 +143,27 @@ public class AiClassificationService {
     private List<TransactionItemDto> parseOpenAiResponse(String aiResponse) {
         this.objectMapper.registerModule(new JavaTimeModule());
         try {
+
+            int start = aiResponse.indexOf('[');
+            int end = aiResponse.lastIndexOf(']');
+
+            if (start != -1 && end != -1) {
+                aiResponse = aiResponse.substring(start, end + 1);
+            } else {
+                throw  new Exception("Invalid JSON or missed from ai response");
+            }
+
             // Парсим JSON в список DTO
             List<TransactionItemDto> items = objectMapper.readValue(aiResponse, new TypeReference<>() {});
 
+            Instant now = Instant.now();
+            Instant oneMonthFromNow = now.plus(30, ChronoUnit.DAYS);
+
             // Валидация и исправление данных
             for (TransactionItemDto item : items) {
+                if (Objects.equals(item.getName(), "NONSENSE")) {
+                    throw  new Exception("Item unrecognizable");
+                }
                 if (item.getName() == null || item.getName().trim().isEmpty()) {
                     item.setName("Unknown Item");
                 }
@@ -139,13 +171,17 @@ public class AiClassificationService {
                     item.setCategory("Unknown");
                 }
                 if (item.getType() == null || item.getType().trim().isEmpty()) {
-                    item.setCategory("UNKNOWN");
+                    item.setType("EXPENSE");
                 }
                 if (item.getPrice() == null) {
                     item.setPrice(BigDecimal.ZERO);
                 }
-                if (item.getDate() == null) {
-                    item.setDate(Instant.now());
+                if (item.getDate() == null ){
+                    item.setDate(now);
+                }
+                if (item.getDate().isAfter(now) || item.getDate().isBefore(oneMonthFromNow)) {
+                    logger.debug("Adjusting date for item {} from {} to now", item.getName(), item.getDate());
+                    item.setDate(now);
                 }
                 if (item.getDescription() == null) {
                     item.setDescription("No description");
