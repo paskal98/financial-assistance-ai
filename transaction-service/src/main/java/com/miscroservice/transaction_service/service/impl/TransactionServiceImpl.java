@@ -2,6 +2,7 @@ package com.miscroservice.transaction_service.service.impl;
 
 import com.miscroservice.transaction_service.exception.AccessDeniedException;
 import com.miscroservice.transaction_service.exception.TransactionNotFoundException;
+import com.miscroservice.transaction_service.model.dto.TransactionItemDto;
 import com.miscroservice.transaction_service.model.dto.TransactionRequest;
 import com.miscroservice.transaction_service.model.dto.TransactionResponse;
 import com.miscroservice.transaction_service.model.dto.TransactionStatsResponse;
@@ -10,9 +11,13 @@ import com.miscroservice.transaction_service.repository.CategoryRepository;
 import com.miscroservice.transaction_service.repository.TransactionRepository;
 import com.miscroservice.transaction_service.service.TransactionService;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -28,6 +33,7 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class TransactionServiceImpl implements TransactionService {
+    private static final Logger logger = LoggerFactory.getLogger(TransactionServiceImpl.class);
 
     private final TransactionRepository transactionRepository;
     private final CategoryRepository categoryRepository;
@@ -155,6 +161,51 @@ public class TransactionServiceImpl implements TransactionService {
 
         redisTemplate.opsForValue().set(cacheKey, stats, 10, TimeUnit.MINUTES);
         return stats;
+    }
+
+    @Override
+    public void processTransactionFromDocument(TransactionItemDto item, UUID userId, UUID documentId) {
+        logger.info("Processing transaction from document: {} for user: {}", item, userId);
+
+        // Validate category
+        validateCategory(item.getCategory());
+
+        // Map TransactionItemDto to Transaction
+        Transaction transaction = new Transaction();
+        transaction.setUserId(userId);
+        transaction.setAmount(item.getPrice());
+        transaction.setType(item.getType()); // Assuming document items are expenses; adjust if needed
+        transaction.setCategory(item.getCategory());
+        transaction.setDescription(item.getName());
+        transaction.setDate(item.getDate());
+        transaction.setPaymentMethod(item.getPaymentMethod()); // Default; can be enriched later
+        transaction.setDocumentId(documentId);
+        transaction.setCreatedAt(Instant.now());
+        transaction.setUpdatedAt(Instant.now());
+
+        // Save to database
+        transaction = transactionRepository.save(transaction);
+        logger.info("Transaction saved from document: {}", transaction);
+
+        // Invalidate cache
+        invalidateCache(userId);
+    }
+
+    @KafkaListener(topics = "transactions-topic", groupId = "transaction-group")
+    public void consumeTransactionFromDocument(
+            TransactionItemDto item,
+            @Header(name = "userId", required = false) String userIdHeader,
+            @Header(name = "documentId", required = false) String documentIdHeader) {
+        try {
+            // Resolve userId and documentId from headers or fallback
+            UUID userId = userIdHeader != null ? UUID.fromString(userIdHeader) : UUID.randomUUID(); // Fallback for now
+            UUID documentId = documentIdHeader != null ? UUID.fromString(documentIdHeader) : null;
+
+            processTransactionFromDocument(item, userId, documentId);
+        } catch (Exception e) {
+            logger.error("Failed to process transaction from Kafka: {}", item, e);
+            throw new RuntimeException("Failed to process transaction from document", e);
+        }
     }
 
     private TransactionResponse mapToResponse(Transaction transaction) {

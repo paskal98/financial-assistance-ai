@@ -1,5 +1,6 @@
 package com.miscroservice.transaction_service.service;
 
+import com.miscroservice.transaction_service.model.dto.TransactionItemDto;
 import com.miscroservice.transaction_service.model.dto.TransactionRequest;
 import com.miscroservice.transaction_service.model.dto.TransactionResponse;
 import com.miscroservice.transaction_service.model.dto.TransactionStatsResponse;
@@ -16,4 +17,5 @@ public interface TransactionService {
     TransactionResponse updateTransaction(UUID id, TransactionRequest request, UUID userId);
     void deleteTransaction(UUID id, UUID userId);
     TransactionStatsResponse getStats(UUID userId, String startDate, String endDate);
+    void processTransactionFromDocument(TransactionItemDto item, UUID userId, UUID documentId);
 }
