@@ -84,7 +84,13 @@ public class DocumentProcessingConsumer {
         } catch (Exception e) {
             logger.error("Failed to process document: {}", message, e);
             document.setStatus("FAILED");
-            document.setErrorMessage(e.getMessage());
+            if (e.getMessage().contains("Tesseract")) {
+                document.setErrorMessage("Failed to recognize text in the image. Try uploading a clearer photo.");
+            } else if (e.getMessage().contains("OpenAI")) {
+                document.setErrorMessage("Failed to classify purchases. Check the receipt quality.");
+            } else {
+                document.setErrorMessage("Processing error: " + e.getMessage());
+            }
             document.setUpdatedAt(Instant.now());
             documentRepository.save(document);
             webSocketNotificationService.sendStatusUpdate(document);
