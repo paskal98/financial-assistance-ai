@@ -20,7 +20,7 @@ public class Document {
     private String filePath;
 
     @Column(nullable = false)
-    private String status; // PENDING, PROCESSING, PROCESSED, FAILED
+    private String status; // PENDING, PROCESSING, EXTRACTING_TEXT, CLASSIFYING, PROCESSED, FAILED
 
     @Column(name = "error_message")
     private String errorMessage;

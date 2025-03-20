@@ -40,25 +40,23 @@ public class AiClassificationService {
 
 
     @CircuitBreaker(name = "openai-cb", fallbackMethod = "fallbackClassify")
-    public List<TransactionItemDto> classifyItems(String ocrText) {
+    public List<TransactionItemDto> classifyItems(String ocrText, UUID documentId) {
         if (ocrText == null || ocrText.trim().isEmpty()) {
-            logger.warn("OCR text is null or empty");
-            throw new DocumentProcessingException("OCR text cannot be null or empty");
+            logger.warn("OCR text is null or empty for document: {}", documentId);
+            throw new DocumentProcessingException("OCR text cannot be null or empty for document: " + documentId);
         }
 
         try {
-            logger.info("Classifying items from OCR text: {}", ocrText);
+            logger.info("Classifying items from OCR text for document: {}", documentId);
 
-            // Build a structured prompt for consistent JSON output
             String prompt = buildClassificationPrompt(ocrText);
             ChatCompletionRequest chatRequest = ChatCompletionRequest.builder()
                     .model(model)
                     .messages(List.of(new ChatMessage("user", prompt)))
                     .maxTokens(maxTokens)
-                    .temperature(0.2) // Lower temperature for more deterministic output
+                    .temperature(0.2)
                     .build();
 
-            // Call OpenAI API
             String result = openAiService.createChatCompletion(chatRequest)
                     .getChoices()
                     .get(0)
@@ -66,13 +64,11 @@ public class AiClassificationService {
                     .getContent()
                     .trim();
 
-            logger.info("OpenAI response: {}", result);
-
-            // Parse the response into TransactionItemDto list
-            return parseOpenAiResponse(result);
+            logger.info("OpenAI response for document {}: {}", documentId, result);
+            return parseOpenAiResponse(result, documentId);
         } catch (Exception e) {
-            logger.error("Failed to classify items with OpenAI for OCR text: {}", ocrText, e);
-            throw new DocumentProcessingException("Failed to classify items with OpenAI", e);
+            logger.error("Failed to classify items with OpenAI for document: {}", documentId, e);
+            throw new DocumentProcessingException("Failed to classify items with OpenAI for document: " + documentId, e);
         }
     }
 
@@ -143,29 +139,25 @@ public class AiClassificationService {
     }
 
 
-    private List<TransactionItemDto> parseOpenAiResponse(String aiResponse) {
-        this.objectMapper.registerModule(new JavaTimeModule());
+    private List<TransactionItemDto> parseOpenAiResponse(String aiResponse, UUID documentId) {
+        objectMapper.registerModule(new JavaTimeModule());
         try {
-
             int start = aiResponse.indexOf('[');
             int end = aiResponse.lastIndexOf(']');
 
-            if (start != -1 && end != -1) {
-                aiResponse = aiResponse.substring(start, end + 1);
-            } else {
-                throw  new Exception("Invalid JSON or missed from ai response");
+            if (start == -1 || end == -1) {
+                throw new Exception("Invalid JSON format in OpenAI response for document: " + documentId);
             }
 
-            // Парсим JSON в список DTO
+            aiResponse = aiResponse.substring(start, end + 1);
             List<TransactionItemDto> items = objectMapper.readValue(aiResponse, new TypeReference<>() {});
 
             Instant now = Instant.now();
-            Instant oneMonthFromNow = now.plus(30, ChronoUnit.DAYS);
+            Instant oneMonthAgo = now.minus(30, ChronoUnit.DAYS); // Исправлено на "до" вместо "после"
 
-            // Валидация и исправление данных
             for (TransactionItemDto item : items) {
                 if (Objects.equals(item.getName(), "NONSENSE")) {
-                    throw  new Exception("Item unrecognizable");
+                    throw new Exception("Unrecognizable receipt content for document: " + documentId);
                 }
                 if (item.getName() == null || item.getName().trim().isEmpty()) {
                     item.setName("Unknown Item");
@@ -179,11 +171,11 @@ public class AiClassificationService {
                 if (item.getPrice() == null) {
                     item.setPrice(BigDecimal.ZERO);
                 }
-                if (item.getDate() == null ){
+                if (item.getDate() == null) {
                     item.setDate(now);
                 }
-                if (item.getDate().isAfter(now) || item.getDate().isBefore(oneMonthFromNow)) {
-                    logger.debug("Adjusting date for item {} from {} to now", item.getName(), item.getDate());
+                if (item.getDate().isAfter(now) || item.getDate().isBefore(oneMonthAgo)) {
+                    logger.debug("Adjusting date for item {} from {} to now for document {}", item.getName(), item.getDate(), documentId);
                     item.setDate(now);
                 }
                 if (item.getDescription() == null) {
@@ -193,21 +185,21 @@ public class AiClassificationService {
                     item.setPaymentMethod("Unknown");
                 }
                 if (item.getDocumentId() == null) {
-                    item.setDocumentId(UUID.randomUUID());
+                    item.setDocumentId(documentId); // Привязываем documentId к каждому элементу
                 }
             }
 
-            logger.info("Parsed {} items from OpenAI response", items.size());
+            logger.info("Parsed {} items from OpenAI response for document {}", items.size(), documentId);
             return items;
         } catch (Exception e) {
-            logger.error("Failed to parse OpenAI response: {}", aiResponse, e);
-            throw new DocumentProcessingException("Invalid OpenAI response format", e);
+            logger.error("Failed to parse OpenAI response for document {}: {}", documentId, aiResponse, e);
+            throw new DocumentProcessingException("Invalid OpenAI response format for document: " + documentId, e);
         }
     }
 
 
-    private List<TransactionItemDto> fallbackClassify(String ocrText, Throwable t) {
-        logger.warn("Fallback triggered for AI classification due to: {}", t.getMessage());
-        return List.of(new TransactionItemDto());
+    private List<TransactionItemDto> fallbackClassify(String ocrText, UUID documentId, Throwable t) {
+        logger.warn("Fallback triggered for AI classification for document {} due to: {}", documentId, t.getMessage());
+        throw new DocumentProcessingException("AI classification failed for document " + documentId + ": " + t.getMessage(), t);
     }
 }

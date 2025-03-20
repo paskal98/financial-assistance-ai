@@ -19,7 +19,9 @@ import org.springframework.retry.annotation.Backoff;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -33,6 +35,8 @@ public class DocumentProcessingConsumer {
     private final KafkaTemplate<String, String> kafkaTemplate;
     private final DocumentRepository documentRepository;
     private final WebSocketNotificationService webSocketNotificationService;
+
+    private final Map<UUID, DocumentProcessingState> processingStates = new HashMap<>();
 
     @RetryableTopic(
             attempts = "3",
@@ -54,31 +58,29 @@ public class DocumentProcessingConsumer {
         try {
             logger.info("Processing document: {}", filePath);
 
-            // Обновляем статус на PROCESSING
             document.setStatus("PROCESSING");
             document.setUpdatedAt(Instant.now());
             documentRepository.save(document);
             webSocketNotificationService.sendStatusUpdate(document);
 
-            // OCR
-            String ocrText = ocrService.extractTextFromImage(filePath);
+            document.setStatus("EXTRACTING_TEXT");
+            document.setUpdatedAt(Instant.now());
+            documentRepository.save(document);
+            webSocketNotificationService.sendStatusUpdate(document);
+            String ocrText = ocrService.extractTextFromImage(filePath, docId);
 
-            // AI Classification
-            List<TransactionItemDto> items = aiClassificationService.classifyItems(ocrText);
+            document.setStatus("CLASSIFYING");
+            documentRepository.save(document);
+            webSocketNotificationService.sendStatusUpdate(document);
+            List<TransactionItemDto> items = aiClassificationService.classifyItems(ocrText, docId);
             if (date != null) {
                 items.forEach(item -> item.setDate(Instant.parse(date)));
             }
 
-            // Send to Kafka
+            processingStates.put(docId, new DocumentProcessingState(items.size()));
             items.forEach(item -> transactionProducerService.sendTransaction(item, UUID.fromString(userId), docId));
 
-            // Обновляем статус на PROCESSED
-            document.setStatus("PROCESSED");
-            document.setUpdatedAt(Instant.now());
-            documentRepository.save(document);
-            webSocketNotificationService.sendStatusUpdate(document);
-
-            logger.info("Document processed successfully: {}", filePath);
+            logger.info("Document sent for transaction processing: {}", filePath);
         } catch (Exception e) {
             logger.error("Failed to process document: {}", message, e);
             document.setStatus("FAILED");
@@ -87,6 +89,46 @@ public class DocumentProcessingConsumer {
             documentRepository.save(document);
             webSocketNotificationService.sendStatusUpdate(document);
             sendToDlq(message, e.getMessage());
+            processingStates.remove(docId);
+        }
+    }
+
+    @KafkaListener(topics = "document-transaction-feedback", groupId = "doc-feedback-group")
+    public void handleTransactionFeedback(String feedbackMessage) {
+        String[] parts = feedbackMessage.split("\\|");
+        UUID documentId = UUID.fromString(parts[0]);
+        String itemName = parts[1];
+        String status = parts[2];
+        String errorMessage = parts.length > 3 ? parts[3] : null;
+
+        Document document = documentRepository.findById(documentId)
+                .orElseThrow(() -> new IllegalStateException("Document not found: " + documentId));
+        DocumentProcessingState state = processingStates.get(documentId);
+
+        if (state == null) {
+            logger.warn("No processing state found for document: {}", documentId);
+            return;
+        }
+
+        if ("SUCCESS".equals(status)) {
+            state.incrementProcessed();
+        } else {
+            document.setStatus("FAILED");
+            document.setErrorMessage(String.format("Transaction '%s' failed: %s", itemName, errorMessage));
+            document.setUpdatedAt(Instant.now());
+            documentRepository.save(document);
+            webSocketNotificationService.sendStatusUpdate(document);
+            processingStates.remove(documentId);
+            return;
+        }
+
+        if (state.isProcessingComplete()) {
+            document.setStatus("PROCESSED");
+            document.setErrorMessage(null);
+            document.setUpdatedAt(Instant.now());
+            documentRepository.save(document);
+            webSocketNotificationService.sendStatusUpdate(document);
+            processingStates.remove(documentId);
         }
     }
 
