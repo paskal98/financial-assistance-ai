@@ -6,6 +6,7 @@ import com.microservice.document_processing_service.model.dto.TransactionItemDto
 import com.theokanning.openai.completion.chat.ChatCompletionRequest;
 import com.theokanning.openai.completion.chat.ChatMessage;
 import com.theokanning.openai.service.OpenAiService;
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -38,6 +39,7 @@ public class AiClassificationService {
     private int maxTokens;
 
 
+    @CircuitBreaker(name = "openai-cb", fallbackMethod = "fallbackClassify")
     public List<TransactionItemDto> classifyItems(String ocrText) {
         if (ocrText == null || ocrText.trim().isEmpty()) {
             logger.warn("OCR text is null or empty");
@@ -124,6 +126,7 @@ public class AiClassificationService {
             ### **Important Rules:**
             1. If the receipt contains an **itemized list**, only return the individual items and **exclude the total amount**
             2. If there are **no items**, return only the **total amount** as a single transaction.
+            3. If name of item is seems to be written with mistake, just solve it and provide approximately correct name in correct language
             
             Example output:
             [
@@ -203,4 +206,8 @@ public class AiClassificationService {
     }
 
 
+    private List<TransactionItemDto> fallbackClassify(String ocrText, Throwable t) {
+        logger.warn("Fallback triggered for AI classification due to: {}", t.getMessage());
+        return List.of(new TransactionItemDto());
+    }
 }
