@@ -8,21 +8,23 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 
 public interface TransactionRepository extends JpaRepository<Transaction, UUID> {
     List<Transaction> findByUserId(UUID userId);
     @Query("SELECT t FROM Transaction t WHERE t.userId = :userId " +
-            "AND (:startDate IS NULL OR t.date >= :startDate) " +
-            "AND (:endDate IS NULL OR t.date <= :endDate) " +
-            "AND (:category IS NULL OR t.category = :category) " +
-            "AND (:type IS NULL OR t.type = :type)")
+            "AND (COALESCE(:startDate, t.date) = t.date OR t.date >= :startDate) " +
+            "AND (COALESCE(:endDate, t.date) = t.date OR t.date <= :endDate) " +
+            "AND (COALESCE(:category, t.category) = t.category) " +
+            "AND (COALESCE(:type, t.type) = t.type)")
     Page<Transaction> findByFilters(
             @Param("userId") UUID userId,
-            @Param("startDate") Instant startDate,
-            @Param("endDate") Instant endDate,
+            @Param("startDate") LocalDate startDate,
+            @Param("endDate") LocalDate endDate,
             @Param("category") String category,
             @Param("type") String type,
             Pageable pageable);
+
 }
