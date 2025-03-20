@@ -10,7 +10,6 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
 import org.springframework.kafka.core.*;
-import org.springframework.kafka.support.serializer.JsonDeserializer;
 import org.springframework.kafka.support.serializer.JsonSerializer;
 
 import java.util.HashMap;
@@ -22,8 +21,9 @@ public class KafkaConfig {
     @Value("${spring.kafka.bootstrap-servers}")
     private String bootstrapServers;
 
+    // ProducerFactory для String сообщений (DLQ и RetryableTopic)
     @Bean
-    public ProducerFactory<String, String> documentProducerFactory() {
+    public ProducerFactory<String, String> stringProducerFactory() {
         Map<String, Object> configProps = new HashMap<>();
         configProps.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
         configProps.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
@@ -31,11 +31,13 @@ public class KafkaConfig {
         return new DefaultKafkaProducerFactory<>(configProps);
     }
 
-    @Bean
-    public KafkaTemplate<String, String> documentKafkaTemplate() {
-        return new KafkaTemplate<>(documentProducerFactory());
+    // KafkaTemplate для RetryableTopic
+    @Bean(name = "defaultRetryTopicKafkaTemplate")
+    public KafkaTemplate<String, String> defaultRetryTopicKafkaTemplate() {
+        return new KafkaTemplate<>(stringProducerFactory());
     }
 
+    // ProducerFactory для TransactionItemDto
     @Bean
     public ProducerFactory<String, TransactionItemDto> transactionProducerFactory() {
         Map<String, Object> configProps = new HashMap<>();
@@ -45,11 +47,13 @@ public class KafkaConfig {
         return new DefaultKafkaProducerFactory<>(configProps);
     }
 
+    // KafkaTemplate для транзакций
     @Bean
     public KafkaTemplate<String, TransactionItemDto> transactionKafkaTemplate() {
         return new KafkaTemplate<>(transactionProducerFactory());
     }
 
+    // ConsumerFactory для String сообщений
     @Bean
     public ConsumerFactory<String, String> consumerFactory() {
         Map<String, Object> configProps = new HashMap<>();

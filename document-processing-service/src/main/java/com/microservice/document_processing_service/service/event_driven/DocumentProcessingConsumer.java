@@ -8,6 +8,12 @@ import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.kafka.annotation.RetryableTopic;
+import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.kafka.support.KafkaHeaders;
+import org.springframework.messaging.Message;
+import org.springframework.messaging.support.MessageBuilder;
+import org.springframework.retry.annotation.Backoff;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -22,7 +28,13 @@ public class DocumentProcessingConsumer {
     private final OcrService ocrService;
     private final AiClassificationService aiClassificationService;
     private final TransactionProducerService transactionProducerService;
+    private final KafkaTemplate<String, String> kafkaTemplate;
 
+    @RetryableTopic(
+            attempts = "3",
+            backoff = @Backoff(delay = 1000, multiplier = 2.0),
+            exclude = {IllegalArgumentException.class}
+    )
     @KafkaListener(topics = "document-processing-queue", groupId = "doc-processing-group")
     public void processDocument(String message) {
         try {
@@ -43,13 +55,23 @@ public class DocumentProcessingConsumer {
                 items.forEach(item -> item.setDate(Instant.parse(date)));
             }
 
-            // Send to Kafka with userId and documentId
+            // Send to Kafka
             items.forEach(item -> transactionProducerService.sendTransaction(item, UUID.fromString(userId), UUID.fromString(documentId)));
 
             logger.info("Document processed successfully: {}", filePath);
         } catch (Exception e) {
             logger.error("Failed to process document: {}", message, e);
-            // Optionally, send to a dead-letter queue
+            sendToDlq(message, e.getMessage());
         }
+    }
+
+    private void sendToDlq(String message, String errorReason) {
+        Message<String> dlqMessage = MessageBuilder
+                .withPayload(message)
+                .setHeader(KafkaHeaders.TOPIC, "document-processing-dlq")
+                .setHeader("errorReason", errorReason)
+                .build();
+        kafkaTemplate.send(dlqMessage);
+        logger.info("Message sent to DLQ: {}", message);
     }
 }

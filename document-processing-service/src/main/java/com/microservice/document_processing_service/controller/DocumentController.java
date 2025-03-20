@@ -1,53 +1,42 @@
 package com.microservice.document_processing_service.controller;
 
-import com.microservice.document_processing_service.model.dto.DocumentUploadRequest;
-import com.microservice.document_processing_service.service.DocumentStorageService;
+import com.microservice.document_processing_service.service.DocumentProcessingService;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
-import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.util.UUID;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import java.util.List;
 
 @RestController
 @RequestMapping("/documents")
 @RequiredArgsConstructor
 public class DocumentController {
 
-    private final DocumentStorageService storageService;
-    private final KafkaTemplate<String, String> documentKafkaTemplate;
+    private static final Logger logger = LoggerFactory.getLogger(DocumentController.class);
+
+    private final DocumentProcessingService documentProcessingService;
 
     @PostMapping(value = "/upload", consumes = "multipart/form-data")
-    public ResponseEntity<String> uploadDocument(
-            @RequestParam("file") MultipartFile file,
+    public ResponseEntity<List<String>> uploadDocuments(
+            @RequestParam("files") List<MultipartFile> files,
             @RequestParam(value = "userId") String userId,
             @RequestParam(value = "date", required = false) String date) {
 
-                // Сохраняем файл
-        String filePath = storageService.store(file);
-
-        String uuidRegex = "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}";
-        Pattern pattern = Pattern.compile(uuidRegex);
-        Matcher matcher = pattern.matcher(filePath);
-
-        String documentId ;
-        // Поиск UUID в строке
-        if (matcher.find()) {
-            documentId =  matcher.group();
-        } else {
-            documentId = UUID.randomUUID().toString();
+        try {
+            List<String> responses = documentProcessingService.processDocuments(files, userId, date);
+            return ResponseEntity.accepted().body(responses);
+        } catch (IllegalArgumentException e) {
+            logger.warn("Validation failed for upload request by user {}: {}", userId, e.getMessage());
+            return ResponseEntity.badRequest().body(List.of(e.getMessage()));
+        } catch (Exception e) {
+            logger.error("Unexpected error during document upload for user {}: {}", userId, e.getMessage());
+            return ResponseEntity.internalServerError().body(List.of("Internal server error: " + e.getMessage()));
         }
-
-        // Создаем сообщение с путем файла и датой (если есть)
-        String message = filePath + "|" + userId + "|" + documentId + (date != null ? "|" + date : "") ;
-        documentKafkaTemplate.send("document-processing-queue", message);
-
-        return ResponseEntity.accepted().body("Document queued for processing: " + filePath);
     }
 }
