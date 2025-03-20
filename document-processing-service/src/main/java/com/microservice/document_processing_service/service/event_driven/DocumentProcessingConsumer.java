@@ -1,5 +1,7 @@
 package com.microservice.document_processing_service.service.event_driven;
 
+import com.microservice.document_processing_service.model.entity.Document;
+import com.microservice.document_processing_service.repository.DocumentRepository;
 import com.microservice.document_processing_service.model.dto.TransactionItemDto;
 import com.microservice.document_processing_service.service.TransactionProducerService;
 import com.microservice.document_processing_service.service.agent.AiClassificationService;
@@ -29,6 +31,8 @@ public class DocumentProcessingConsumer {
     private final AiClassificationService aiClassificationService;
     private final TransactionProducerService transactionProducerService;
     private final KafkaTemplate<String, String> kafkaTemplate;
+    private final DocumentRepository documentRepository;
+    private final WebSocketNotificationService webSocketNotificationService;
 
     @RetryableTopic(
             attempts = "3",
@@ -37,14 +41,24 @@ public class DocumentProcessingConsumer {
     )
     @KafkaListener(topics = "document-processing-queue", groupId = "doc-processing-group")
     public void processDocument(String message) {
-        try {
-            String[] parts = message.split("\\|", 4);
-            String filePath = parts[0];
-            String userId = parts[1];
-            String documentId = parts[2];
-            String date = parts.length > 3 ? parts[3] : null;
+        String[] parts = message.split("\\|", 4);
+        String filePath = parts[0];
+        String userId = parts[1];
+        String documentId = parts[2];
+        String date = parts.length > 3 ? parts[3] : null;
 
+        UUID docId = UUID.fromString(documentId);
+        Document document = documentRepository.findById(docId)
+                .orElseThrow(() -> new IllegalStateException("Document not found: " + documentId));
+
+        try {
             logger.info("Processing document: {}", filePath);
+
+            // Обновляем статус на PROCESSING
+            document.setStatus("PROCESSING");
+            document.setUpdatedAt(Instant.now());
+            documentRepository.save(document);
+            webSocketNotificationService.sendStatusUpdate(document);
 
             // OCR
             String ocrText = ocrService.extractTextFromImage(filePath);
@@ -56,11 +70,22 @@ public class DocumentProcessingConsumer {
             }
 
             // Send to Kafka
-            items.forEach(item -> transactionProducerService.sendTransaction(item, UUID.fromString(userId), UUID.fromString(documentId)));
+            items.forEach(item -> transactionProducerService.sendTransaction(item, UUID.fromString(userId), docId));
+
+            // Обновляем статус на PROCESSED
+            document.setStatus("PROCESSED");
+            document.setUpdatedAt(Instant.now());
+            documentRepository.save(document);
+            webSocketNotificationService.sendStatusUpdate(document);
 
             logger.info("Document processed successfully: {}", filePath);
         } catch (Exception e) {
             logger.error("Failed to process document: {}", message, e);
+            document.setStatus("FAILED");
+            document.setErrorMessage(e.getMessage());
+            document.setUpdatedAt(Instant.now());
+            documentRepository.save(document);
+            webSocketNotificationService.sendStatusUpdate(document);
             sendToDlq(message, e.getMessage());
         }
     }
