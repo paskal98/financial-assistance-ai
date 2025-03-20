@@ -39,6 +39,7 @@ public class OcrService {
     @Value("${minio.bucket}")
     private String bucketName;
 
+    // Note: Tesseract (tess4j) natively supports PDF files with text or images
     @CircuitBreaker(name = "minio-cb", fallbackMethod = "fallbackOcr")
     public String extractTextFromImage(String objectName, UUID documentId) {
         ITesseract tesseract = new Tesseract();
