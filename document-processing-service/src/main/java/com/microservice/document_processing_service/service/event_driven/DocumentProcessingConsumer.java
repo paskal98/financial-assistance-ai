@@ -1,13 +1,18 @@
-package com.microservice.document_processing_service.service;
+package com.microservice.document_processing_service.service.event_driven;
 
 import com.microservice.document_processing_service.model.dto.TransactionItemDto;
+import com.microservice.document_processing_service.service.TransactionProducerService;
+import com.microservice.document_processing_service.service.agent.AiClassificationService;
+import com.microservice.document_processing_service.service.agent.OcrService;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Service;
 
+import java.time.Instant;
 import java.util.List;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -21,29 +26,32 @@ public class DocumentProcessingConsumer {
     @KafkaListener(topics = "document-processing-queue", groupId = "doc-processing-group")
     public void processDocument(String message) {
         try {
-            // Разделяем путь файла и дату (если есть)
             String[] parts = message.split("\\|", 2);
             String filePath = parts[0];
             String date = parts.length > 1 ? parts[1] : null;
 
             logger.info("Processing document: {}", filePath);
 
+            // For now, hardcode userId and documentId (replace with actual logic)
+            UUID userId = UUID.randomUUID(); // Replace with real userId resolution
+            UUID documentId = UUID.randomUUID(); // Generate or extract from context
+
             // OCR
             String ocrText = ocrService.extractTextFromImage(filePath);
 
-            // AI-классификация
+            // AI Classification
             List<TransactionItemDto> items = aiClassificationService.classifyItems(ocrText);
             if (date != null) {
-                items.forEach(item -> item.setDate(date));
+                items.forEach(item -> item.setDate(Instant.parse(date)));
             }
 
-            // Отправка в Kafka (transactions-topic)
-            items.forEach(transactionProducerService::sendTransaction);
+            // Send to Kafka with userId and documentId
+            items.forEach(item -> transactionProducerService.sendTransaction(item, userId, documentId));
 
             logger.info("Document processed successfully: {}", filePath);
         } catch (Exception e) {
             logger.error("Failed to process document: {}", message, e);
-            // Можно добавить повторную отправку в "dead letter queue" при ошибке
+            // Optionally, send to a dead-letter queue
         }
     }
 }

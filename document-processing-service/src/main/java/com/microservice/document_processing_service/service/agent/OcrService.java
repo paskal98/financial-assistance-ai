@@ -1,4 +1,4 @@
-package com.microservice.document_processing_service.service;
+package com.microservice.document_processing_service.service.agent;
 
 import net.sourceforge.tess4j.ITesseract;
 import net.sourceforge.tess4j.Tesseract;
