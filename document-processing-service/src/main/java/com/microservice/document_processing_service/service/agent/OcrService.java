@@ -1,5 +1,6 @@
 package com.microservice.document_processing_service.service.agent;
 
+import com.microservice.document_processing_service.exception.DocumentProcessingException;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import io.minio.GetObjectArgs;
 import io.minio.MinioClient;
@@ -23,6 +24,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -38,19 +40,17 @@ public class OcrService {
     private String bucketName;
 
     @CircuitBreaker(name = "minio-cb", fallbackMethod = "fallbackOcr")
-    public String extractTextFromImage(String objectName) {
+    public String extractTextFromImage(String objectName, UUID documentId) {
         ITesseract tesseract = new Tesseract();
 
         try {
-            // Проверяем tessdata
             File tessDataDir = new File(tessDataPath);
             if (!tessDataDir.exists() || !tessDataDir.isDirectory()) {
-                logger.error("Tessdata directory not found at: {}", tessDataPath);
-                throw new IllegalStateException("Tessdata directory not found at: " + tessDataPath);
+                logger.error("Tessdata directory not found at: {} for document: {}", tessDataPath, documentId);
+                throw new DocumentProcessingException("Tessdata directory not found at: " + tessDataPath + " for document: " + documentId);
             }
             tesseract.setDatapath(tessDataPath);
 
-            // Загружаем файл из MinIO во временный файл
             Path tempFile = Files.createTempFile("ocr-", objectName.substring(objectName.lastIndexOf(".")));
             try (InputStream inputStream = minioClient.getObject(
                     GetObjectArgs.builder()
@@ -60,26 +60,21 @@ public class OcrService {
                 Files.copy(inputStream, tempFile, StandardCopyOption.REPLACE_EXISTING);
             }
 
-            logger.info("Extracting text from image: {}", objectName);
-
-            // Извлекаем текст
+            logger.info("Extracting text from image: {} for document: {}", objectName, documentId);
             String result = tesseract.doOCR(tempFile.toFile());
-            logger.info("Text extracted successfully: {}", result);
+            logger.info("Text extracted successfully for document {}: {}", documentId, result);
 
-            // Удаляем временный файл
             Files.deleteIfExists(tempFile);
-
             return result;
 
         } catch (Exception e) {
-            logger.error("Failed to extract text from image: {}", objectName, e);
-            throw new RuntimeException("Failed to process image with Tesseract", e);
+            logger.error("Failed to extract text from image: {} for document: {}", objectName, documentId, e);
+            throw new DocumentProcessingException("Failed to process image with Tesseract for document: " + documentId, e);
         }
     }
 
-
-    private String fallbackOcr(String objectName, Throwable t) {
-        logger.warn("Fallback triggered for OCR due to: {}", t.getMessage());
-        return "OCR processing unavailable";
+    private String fallbackOcr(String objectName, UUID documentId, Throwable t) {
+        logger.warn("Fallback triggered for OCR for document {} due to: {}", documentId, t.getMessage());
+        throw new DocumentProcessingException("OCR processing failed for document " + documentId + ": " + t.getMessage(), t);
     }
 }
