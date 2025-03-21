@@ -37,6 +37,10 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-data-redis'
 
 	implementation 'org.springframework.boot:spring-boot-starter-websocket'
+
+	implementation 'org.apache.pdfbox:pdfbox:3.0.1' // Для прямой работы с PDF (опционально)
+	implementation 'com.github.jai-imageio:jai-imageio-core:1.4.0' // Для работы с изображениями
+
 	compileOnly("org.projectlombok:lombok")
 	annotationProcessor("org.projectlombok:lombok")
 
