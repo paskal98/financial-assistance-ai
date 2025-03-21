@@ -1,4 +1,4 @@
-package com.microservice.document_processing_service.service.event_driven;
+package com.microservice.document_processing_service.service.messaging;
 
 import com.microservice.document_processing_service.model.dto.DocumentStatusMessageDto;
 import com.microservice.document_processing_service.model.entity.Document;

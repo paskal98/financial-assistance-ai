@@ -1,11 +1,11 @@
-package com.microservice.document_processing_service.service.event_driven;
+package com.microservice.document_processing_service.service.messaging;
 
 import com.microservice.document_processing_service.model.entity.Document;
 import com.microservice.document_processing_service.repository.DocumentRepository;
 import com.microservice.document_processing_service.model.dto.TransactionItemDto;
 import com.microservice.document_processing_service.service.TransactionProducerService;
-import com.microservice.document_processing_service.service.agent.AiClassificationService;
-import com.microservice.document_processing_service.service.agent.OcrService;
+import com.microservice.document_processing_service.service.ai.OpenAiClassifier;
+import com.microservice.document_processing_service.service.ocr.TesseractOcrProcessor;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,8 +29,8 @@ import java.util.UUID;
 public class DocumentProcessingConsumer {
     private static final Logger logger = LoggerFactory.getLogger(DocumentProcessingConsumer.class);
 
-    private final OcrService ocrService;
-    private final AiClassificationService aiClassificationService;
+    private final TesseractOcrProcessor tesseractOcrProcessor;
+    private final OpenAiClassifier openAiClassifier;
     private final TransactionProducerService transactionProducerService;
     private final KafkaTemplate<String, String> kafkaTemplate;
     private final DocumentRepository documentRepository;
@@ -67,12 +67,12 @@ public class DocumentProcessingConsumer {
             document.setUpdatedAt(Instant.now());
             documentRepository.save(document);
             webSocketNotificationService.sendStatusUpdate(document);
-            String ocrText = ocrService.extractTextFromImage(filePath, docId);
+            String ocrText = tesseractOcrProcessor.extractTextFromImage(filePath, docId);
 
             document.setStatus("CLASSIFYING");
             documentRepository.save(document);
             webSocketNotificationService.sendStatusUpdate(document);
-            List<TransactionItemDto> items = aiClassificationService.classifyItems(ocrText, docId);
+            List<TransactionItemDto> items = openAiClassifier.classifyItems(ocrText, docId);
             if (date != null) {
                 items.forEach(item -> item.setDate(Instant.parse(date)));
             }
