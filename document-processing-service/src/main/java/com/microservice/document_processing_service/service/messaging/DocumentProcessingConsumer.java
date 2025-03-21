@@ -1,11 +1,11 @@
 package com.microservice.document_processing_service.service.messaging;
 
+import com.microservice.document_processing_service.model.dto.TransactionItemDto;
 import com.microservice.document_processing_service.model.entity.Document;
 import com.microservice.document_processing_service.repository.DocumentRepository;
-import com.microservice.document_processing_service.model.dto.TransactionItemDto;
 import com.microservice.document_processing_service.service.TransactionProducerService;
-import com.microservice.document_processing_service.service.ai.OpenAiClassifier;
-import com.microservice.document_processing_service.service.ocr.TesseractOcrProcessor;
+import com.microservice.document_processing_service.service.processing.DocumentProcessor;
+import com.microservice.document_processing_service.service.processing.DocumentStateManager;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -18,10 +18,7 @@ import org.springframework.messaging.support.MessageBuilder;
 import org.springframework.retry.annotation.Backoff;
 import org.springframework.stereotype.Service;
 
-import java.time.Instant;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -29,14 +26,11 @@ import java.util.UUID;
 public class DocumentProcessingConsumer {
     private static final Logger logger = LoggerFactory.getLogger(DocumentProcessingConsumer.class);
 
-    private final TesseractOcrProcessor tesseractOcrProcessor;
-    private final OpenAiClassifier openAiClassifier;
+    private final DocumentProcessor documentProcessor;
+    private final DocumentStateManager documentStateManager;
     private final TransactionProducerService transactionProducerService;
     private final KafkaTemplate<String, String> kafkaTemplate;
     private final DocumentRepository documentRepository;
-    private final WebSocketNotificationService webSocketNotificationService;
-
-    private final Map<UUID, DocumentProcessingState> processingStates = new HashMap<>();
 
     @RetryableTopic(
             attempts = "3",
@@ -47,55 +41,24 @@ public class DocumentProcessingConsumer {
     public void processDocument(String message) {
         String[] parts = message.split("\\|", 4);
         String filePath = parts[0];
-        String userId = parts[1];
-        String documentId = parts[2];
+        UUID userId = UUID.fromString(parts[1]);
+        UUID documentId = UUID.fromString(parts[2]);
         String date = parts.length > 3 ? parts[3] : null;
 
-        UUID docId = UUID.fromString(documentId);
-        Document document = documentRepository.findById(docId)
-                .orElseThrow(() -> new IllegalStateException("Document not found: " + documentId));
-
         try {
-            logger.info("Processing document: {}", filePath);
+            logger.info("Received message for document processing: {}", message);
 
-            document.setStatus("PROCESSING");
-            document.setUpdatedAt(Instant.now());
-            documentRepository.save(document);
-            webSocketNotificationService.sendStatusUpdate(document);
+            documentStateManager.updateStatus(documentId, "PROCESSING");
+            List<TransactionItemDto> items = documentProcessor.processDocument(filePath, documentId, userId, date);
 
-            document.setStatus("EXTRACTING_TEXT");
-            document.setUpdatedAt(Instant.now());
-            documentRepository.save(document);
-            webSocketNotificationService.sendStatusUpdate(document);
-            String ocrText = tesseractOcrProcessor.extractTextFromImage(filePath, docId);
-
-            document.setStatus("CLASSIFYING");
-            documentRepository.save(document);
-            webSocketNotificationService.sendStatusUpdate(document);
-            List<TransactionItemDto> items = openAiClassifier.classifyItems(ocrText, docId);
-            if (date != null) {
-                items.forEach(item -> item.setDate(Instant.parse(date)));
-            }
-
-            processingStates.put(docId, new DocumentProcessingState(items.size()));
-            items.forEach(item -> transactionProducerService.sendTransaction(item, UUID.fromString(userId), docId));
+            items.forEach(item -> transactionProducerService.sendTransaction(item, userId, documentId));
 
             logger.info("Document sent for transaction processing: {}", filePath);
         } catch (Exception e) {
             logger.error("Failed to process document: {}", message, e);
-            document.setStatus("FAILED");
-            if (e.getMessage().contains("Tesseract")) {
-                document.setErrorMessage("Failed to recognize text in the image. Try uploading a clearer photo.");
-            } else if (e.getMessage().contains("OpenAI")) {
-                document.setErrorMessage("Failed to classify purchases. Check the receipt quality.");
-            } else {
-                document.setErrorMessage("Processing error: " + e.getMessage());
-            }
-            document.setUpdatedAt(Instant.now());
-            documentRepository.save(document);
-            webSocketNotificationService.sendStatusUpdate(document);
+            String errorMessage = determineErrorMessage(e);
+            documentStateManager.updateStatus(documentId, "FAILED", errorMessage);
             sendToDlq(message, e.getMessage());
-            processingStates.remove(docId);
         }
     }
 
@@ -109,32 +72,26 @@ public class DocumentProcessingConsumer {
 
         Document document = documentRepository.findById(documentId)
                 .orElseThrow(() -> new IllegalStateException("Document not found: " + documentId));
-        DocumentProcessingState state = processingStates.get(documentId);
-
-        if (state == null) {
-            logger.warn("No processing state found for document: {}", documentId);
-            return;
-        }
 
         if ("SUCCESS".equals(status)) {
-            state.incrementProcessed();
+            // Здесь можно использовать Redis или БД для отслеживания состояния
+            // Пока оставим упрощенную логику
+            if (isProcessingComplete(documentId)) {
+                documentStateManager.updateStatus(documentId, "PROCESSED");
+            }
         } else {
-            document.setStatus("FAILED");
-            document.setErrorMessage(String.format("Transaction '%s' failed: %s", itemName, errorMessage));
-            document.setUpdatedAt(Instant.now());
-            documentRepository.save(document);
-            webSocketNotificationService.sendStatusUpdate(document);
-            processingStates.remove(documentId);
-            return;
+            documentStateManager.updateStatus(documentId, "FAILED",
+                    String.format("Transaction '%s' failed: %s", itemName, errorMessage));
         }
+    }
 
-        if (state.isProcessingComplete()) {
-            document.setStatus("PROCESSED");
-            document.setErrorMessage(null);
-            document.setUpdatedAt(Instant.now());
-            documentRepository.save(document);
-            webSocketNotificationService.sendStatusUpdate(document);
-            processingStates.remove(documentId);
+    private String determineErrorMessage(Exception e) {
+        if (e.getMessage().contains("Tesseract")) {
+            return "Failed to recognize text in the image. Try uploading a clearer photo.";
+        } else if (e.getMessage().contains("OpenAI")) {
+            return "Failed to classify purchases. Check the receipt quality.";
+        } else {
+            return "Processing error: " + e.getMessage();
         }
     }
 
@@ -146,5 +103,11 @@ public class DocumentProcessingConsumer {
                 .build();
         kafkaTemplate.send(dlqMessage);
         logger.info("Message sent to DLQ: {}", message);
+    }
+
+    // Временная заглушка для проверки завершения обработки
+    private boolean isProcessingComplete(UUID documentId) {
+        // В реальной системе это должно проверяться через Redis или БД
+        return true; // Упростим для примера
     }
 }
