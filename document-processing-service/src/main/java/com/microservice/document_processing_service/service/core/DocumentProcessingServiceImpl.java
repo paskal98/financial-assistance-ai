@@ -1,10 +1,10 @@
-package com.microservice.document_processing_service.service.impl;
+package com.microservice.document_processing_service.service.core;
 
 import com.microservice.document_processing_service.model.entity.Document;
 import com.microservice.document_processing_service.repository.DocumentRepository;
 import com.microservice.document_processing_service.service.DocumentProcessingService;
 import com.microservice.document_processing_service.service.DocumentStorageService;
-import com.microservice.document_processing_service.service.event_driven.WebSocketNotificationService;
+import com.microservice.document_processing_service.service.messaging.WebSocketNotificationService;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

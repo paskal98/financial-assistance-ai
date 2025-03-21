@@ -1,4 +1,4 @@
-package com.microservice.document_processing_service.service.event_driven;
+package com.microservice.document_processing_service.service.messaging;
 
 import lombok.Getter;
 import lombok.Setter;
