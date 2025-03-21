@@ -6,6 +6,7 @@ import com.microservice.document_processing_service.repository.DocumentRepositor
 import com.microservice.document_processing_service.service.TransactionProducerService;
 import com.microservice.document_processing_service.service.processing.DocumentProcessor;
 import com.microservice.document_processing_service.service.processing.DocumentStateManager;
+import com.microservice.document_processing_service.service.processing.ProcessingStateService;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -31,6 +32,7 @@ public class DocumentProcessingConsumer {
     private final TransactionProducerService transactionProducerService;
     private final KafkaTemplate<String, String> kafkaTemplate;
     private final DocumentRepository documentRepository;
+    private final ProcessingStateService processingStateService;
 
     @RetryableTopic(
             attempts = "3",
@@ -51,6 +53,7 @@ public class DocumentProcessingConsumer {
             documentStateManager.updateStatus(documentId, "PROCESSING");
             List<TransactionItemDto> items = documentProcessor.processDocument(filePath, documentId, userId, date);
 
+            processingStateService.initializeState(documentId, items.size());
             items.forEach(item -> transactionProducerService.sendTransaction(item, userId, documentId));
 
             logger.info("Document sent for transaction processing: {}", filePath);
@@ -58,6 +61,7 @@ public class DocumentProcessingConsumer {
             logger.error("Failed to process document: {}", message, e);
             String errorMessage = determineErrorMessage(e);
             documentStateManager.updateStatus(documentId, "FAILED", errorMessage);
+            processingStateService.clearState(documentId); // Очистка состояния при ошибке
             sendToDlq(message, e.getMessage());
         }
     }
@@ -74,14 +78,19 @@ public class DocumentProcessingConsumer {
                 .orElseThrow(() -> new IllegalStateException("Document not found: " + documentId));
 
         if ("SUCCESS".equals(status)) {
-            // Здесь можно использовать Redis или БД для отслеживания состояния
-            // Пока оставим упрощенную логику
-            if (isProcessingComplete(documentId)) {
-                documentStateManager.updateStatus(documentId, "PROCESSED");
+            try {
+                processingStateService.incrementProcessed(documentId);
+                if (processingStateService.isProcessingComplete(documentId)) {
+                    documentStateManager.updateStatus(documentId, "PROCESSED");
+                }
+            } catch (Exception e) {
+                logger.warn("Failed to update processing state for document {}. State may be inconsistent.", documentId, e);
+                // Здесь можно добавить дополнительную логику, например, повторную попытку
             }
         } else {
             documentStateManager.updateStatus(documentId, "FAILED",
                     String.format("Transaction '%s' failed: %s", itemName, errorMessage));
+            processingStateService.clearState(documentId);
         }
     }
 
@@ -103,11 +112,5 @@ public class DocumentProcessingConsumer {
                 .build();
         kafkaTemplate.send(dlqMessage);
         logger.info("Message sent to DLQ: {}", message);
-    }
-
-    // Временная заглушка для проверки завершения обработки
-    private boolean isProcessingComplete(UUID documentId) {
-        // В реальной системе это должно проверяться через Redis или БД
-        return true; // Упростим для примера
     }
 }
