@@ -1,13 +1,13 @@
-package com.microservice.document_processing_service.service.ocr;
+package com.microservcie.ocr_service.service;
 
-import com.microservice.document_processing_service.exception.DocumentProcessingException;
-import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+import com.microservcie.ocr_service.exception.DocumentProcessingException;
 import io.minio.GetObjectArgs;
 import io.minio.MinioClient;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import org.springframework.stereotype.Component;
 
 import java.io.InputStream;
