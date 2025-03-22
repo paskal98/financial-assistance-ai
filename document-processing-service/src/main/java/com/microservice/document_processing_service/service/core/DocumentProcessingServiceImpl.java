@@ -62,7 +62,9 @@ public class DocumentProcessingServiceImpl implements DocumentProcessingService 
 
                 // Отправляем в Kafka
                 String message = filePath + "|" + userId + "|" + documentId + (date != null ? "|" + date : "");
-                documentKafkaTemplate.send("document-processing-queue", message);
+                logger.info("Sending message to Kafka: {}", message);
+                documentKafkaTemplate.send("ocr-processing-queue", message);
+                logger.info("Message sent to Kafka for document: {}", documentId);
 
                 responses.add("Document queued for processing: " + documentId);
                 logger.info("File '{}' queued for processing for user: {}", file.getOriginalFilename(), userId);
