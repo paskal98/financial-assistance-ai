@@ -5,6 +5,7 @@ import com.microservice.document_processing_service.model.dto.TransactionItemDto
 import com.microservice.document_processing_service.service.TransactionProducerService;
 import com.microservice.document_processing_service.service.ai.OpenAiClassifier;
 import com.microservice.document_processing_service.service.processing.DocumentStateManager;
+import com.microservice.document_processing_service.service.processing.ProcessingStateService;
 import com.microservice.document_processing_service.utils.CompressionUtils;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
@@ -25,6 +26,7 @@ public class ClassificationConsumer {
     private final OpenAiClassifier openAiClassifier;
     private final DocumentStateManager documentStateManager;
     private final TransactionProducerService transactionProducerService;
+    private final ProcessingStateService processingStateService;
 
     @KafkaListener(topics = "classification-queue", groupId = "classification-group",
             containerFactory = "ocrResultKafkaListenerContainerFactory")
@@ -39,16 +41,19 @@ public class ClassificationConsumer {
             documentStateManager.updateStatus(documentId, "CLASSIFYING");
 
             List<TransactionItemDto> items = openAiClassifier.classifyItems(ocrText, documentId);
-            if (!Objects.equals(date, "")) {
+            if ( date != null) {
                 Instant parsedDate = Instant.parse(date);
                 items.forEach(item -> item.setDate(parsedDate));
             }
 
+            // Инициализируем состояние обработки
+            processingStateService.initializeState(documentId, items.size());
             items.forEach(item -> transactionProducerService.sendTransaction(item, userId, documentId));
             logger.info("Classification completed for document: {}, {} items", documentId, items.size());
         } catch (Exception e) {
             logger.error("Classification failed for document: {}", documentId, e);
             documentStateManager.updateStatus(documentId, "FAILED", "Classification error: " + e.getMessage());
+            processingStateService.clearState(documentId);
         }
     }
 }

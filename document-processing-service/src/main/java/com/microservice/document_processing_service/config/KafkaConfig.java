@@ -19,11 +19,10 @@ import java.util.Map;
 
 @Configuration
 public class KafkaConfig {
-
     @Value("${spring.kafka.bootstrap-servers}")
     private String bootstrapServers;
 
-    // ProducerFactory для String сообщений (DLQ и RetryableTopic)
+    // Producer для отправки в ocr-processing-queue
     @Bean
     public ProducerFactory<String, String> stringProducerFactory() {
         Map<String, Object> configProps = new HashMap<>();
@@ -33,13 +32,33 @@ public class KafkaConfig {
         return new DefaultKafkaProducerFactory<>(configProps);
     }
 
-    // KafkaTemplate для RetryableTopic
-    @Bean(name = "defaultRetryTopicKafkaTemplate")
-    public KafkaTemplate<String, String> defaultRetryTopicKafkaTemplate() {
+    @Bean
+    public KafkaTemplate<String, String> kafkaTemplate() {
         return new KafkaTemplate<>(stringProducerFactory());
     }
 
-    // ProducerFactory для TransactionItemDto
+    // Consumer для classification-queue
+    @Bean
+    public ConsumerFactory<String, OcrResultMessage> ocrResultConsumerFactory() {
+        Map<String, Object> configProps = new HashMap<>();
+        configProps.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
+        configProps.put(ConsumerConfig.GROUP_ID_CONFIG, "classification-group");
+        configProps.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
+        configProps.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, CustomOcrResultDeserializer.class);
+        configProps.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
+        return new DefaultKafkaConsumerFactory<>(configProps);
+    }
+
+    @Bean
+    public ConcurrentKafkaListenerContainerFactory<String, OcrResultMessage> ocrResultKafkaListenerContainerFactory() {
+        ConcurrentKafkaListenerContainerFactory<String, OcrResultMessage> factory =
+                new ConcurrentKafkaListenerContainerFactory<>();
+        factory.setConsumerFactory(ocrResultConsumerFactory());
+        factory.setConcurrency(5);
+        return factory;
+    }
+
+    // Producer для transactions-topic
     @Bean
     public ProducerFactory<String, TransactionItemDto> transactionProducerFactory() {
         Map<String, Object> configProps = new HashMap<>();
@@ -49,33 +68,12 @@ public class KafkaConfig {
         return new DefaultKafkaProducerFactory<>(configProps);
     }
 
-    // KafkaTemplate для транзакций
     @Bean
     public KafkaTemplate<String, TransactionItemDto> transactionKafkaTemplate() {
         return new KafkaTemplate<>(transactionProducerFactory());
     }
 
-    // ConsumerFactory для String сообщений
-    @Bean
-    public ConsumerFactory<String, String> consumerFactory() {
-        Map<String, Object> configProps = new HashMap<>();
-        configProps.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
-        configProps.put(ConsumerConfig.GROUP_ID_CONFIG, "doc-processing-group");
-        configProps.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
-        configProps.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
-        configProps.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
-        return new DefaultKafkaConsumerFactory<>(configProps);
-    }
-
-    @Bean
-    public ConcurrentKafkaListenerContainerFactory<String, String> kafkaListenerContainerFactory() {
-        ConcurrentKafkaListenerContainerFactory<String, String> factory =
-                new ConcurrentKafkaListenerContainerFactory<>();
-        factory.setConsumerFactory(consumerFactory());
-        factory.setConcurrency(3); // Количество параллельных потоков обработки
-        return factory;
-    }
-
+    // Consumer для document-transaction-feedback
     @Bean
     public ConsumerFactory<String, String> feedbackConsumerFactory() {
         Map<String, Object> configProps = new HashMap<>();
@@ -97,10 +95,10 @@ public class KafkaConfig {
     }
 
     @Bean
-    public ConsumerFactory<String, String> ocrConsumerFactory() {
+    public ConsumerFactory<String, String> ocrFeedbackConsumerFactory() {
         Map<String, Object> configProps = new HashMap<>();
         configProps.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
-        configProps.put(ConsumerConfig.GROUP_ID_CONFIG, "ocr-processing-group");
+        configProps.put(ConsumerConfig.GROUP_ID_CONFIG, "ocr-feedback-group");
         configProps.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
         configProps.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
         configProps.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
@@ -108,65 +106,11 @@ public class KafkaConfig {
     }
 
     @Bean
-    public ConcurrentKafkaListenerContainerFactory<String, String> ocrKafkaListenerContainerFactory() {
-        ConcurrentKafkaListenerContainerFactory<String, String> factory = new ConcurrentKafkaListenerContainerFactory<>();
-        factory.setConsumerFactory(ocrConsumerFactory());
-        factory.setConcurrency(10); // Увеличенная параллельность для OCR
-        return factory;
-    }
-
-    @Bean
-    public ConsumerFactory<String, String> classificationConsumerFactory() {
-        Map<String, Object> configProps = new HashMap<>();
-        configProps.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
-        configProps.put(ConsumerConfig.GROUP_ID_CONFIG, "classification-group");
-        configProps.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
-        configProps.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
-        configProps.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
-        return new DefaultKafkaConsumerFactory<>(configProps);
-    }
-
-    @Bean
-    public ConcurrentKafkaListenerContainerFactory<String, String> classificationKafkaListenerContainerFactory() {
-        ConcurrentKafkaListenerContainerFactory<String, String> factory = new ConcurrentKafkaListenerContainerFactory<>();
-        factory.setConsumerFactory(classificationConsumerFactory());
-        factory.setConcurrency(5); // Параллельность для классификации
-        return factory;
-    }
-
-    @Bean
-    public ProducerFactory<String, OcrResultMessage> ocrResultProducerFactory() {
-        Map<String, Object> configProps = new HashMap<>();
-        configProps.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
-        configProps.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
-        configProps.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, JsonSerializer.class);
-        return new DefaultKafkaProducerFactory<>(configProps);
-    }
-
-    @Bean
-    public KafkaTemplate<String, OcrResultMessage> ocrResultKafkaTemplate() {
-        return new KafkaTemplate<>(ocrResultProducerFactory());
-    }
-
-    @Bean
-    public ConsumerFactory<String, OcrResultMessage> ocrResultConsumerFactory() {
-        Map<String, Object> configProps = new HashMap<>();
-        configProps.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
-        configProps.put(ConsumerConfig.GROUP_ID_CONFIG, "classification-group");
-        configProps.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
-        configProps.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, JsonDeserializer.class);
-        configProps.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
-        configProps.put(JsonDeserializer.TRUSTED_PACKAGES, "com.microservice.document_processing_service.model.dto");
-        return new DefaultKafkaConsumerFactory<>(configProps, new StringDeserializer(),
-                new JsonDeserializer<>(OcrResultMessage.class));
-    }
-
-    @Bean
-    public ConcurrentKafkaListenerContainerFactory<String, OcrResultMessage> ocrResultKafkaListenerContainerFactory() {
-        ConcurrentKafkaListenerContainerFactory<String, OcrResultMessage> factory =
+    public ConcurrentKafkaListenerContainerFactory<String, String> ocrFeedbackKafkaListenerContainerFactory() {
+        ConcurrentKafkaListenerContainerFactory<String, String> factory =
                 new ConcurrentKafkaListenerContainerFactory<>();
-        factory.setConsumerFactory(ocrResultConsumerFactory());
-        factory.setConcurrency(5);
+        factory.setConsumerFactory(ocrFeedbackConsumerFactory());
+        factory.setConcurrency(3);
         return factory;
     }
 }
