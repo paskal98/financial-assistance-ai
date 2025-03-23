@@ -35,7 +35,7 @@ public class DocumentProcessingConsumer {
                 if (processingStateService.isProcessingComplete(documentId)) {
                     documentStateManager.updateStatus(documentId, "PROCESSED");
                 }
-            } else {
+            } else if ("FAILED".equals(status)) {
                 documentStateManager.updateStatus(documentId, "FAILED",
                         String.format("Transaction '%s' failed: %s", itemName, errorMessage));
                 processingStateService.clearState(documentId);

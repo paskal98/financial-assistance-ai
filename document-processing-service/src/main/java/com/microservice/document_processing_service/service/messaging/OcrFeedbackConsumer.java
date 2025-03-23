@@ -22,11 +22,15 @@ public class OcrFeedbackConsumer {
         try {
             String[] parts = feedbackMessage.split("\\|");
             UUID documentId = UUID.fromString(parts[0]);
-            String status = parts[1]; // Например, "FAILED"
+            String status = parts[1];
             String errorMessage = parts.length > 2 ? parts[2] : null;
 
-            documentStateManager.updateStatus(documentId, status, errorMessage);
-            logger.info("Processed OCR feedback for document {}: status={}, error={}", documentId, status, errorMessage);
+            if ("EXTRACTING_TEXT".equals(status) || "CLASSIFYING".equals(status) || "FAILED".equals(status)) {
+                documentStateManager.updateStatus(documentId, status, errorMessage);
+                logger.info("Processed OCR feedback for document {}: status={}, error={}", documentId, status, errorMessage);
+            } else {
+                logger.warn("Unexpected OCR feedback status for document {}: {}", documentId, status);
+            }
         } catch (Exception e) {
             logger.error("Failed to process OCR feedback: {}", feedbackMessage, e);
         }
