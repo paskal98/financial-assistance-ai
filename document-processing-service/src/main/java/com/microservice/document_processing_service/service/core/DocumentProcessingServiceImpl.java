@@ -5,6 +5,7 @@ import com.microservice.document_processing_service.repository.DocumentRepositor
 import com.microservice.document_processing_service.service.DocumentProcessingService;
 import com.microservice.document_processing_service.service.DocumentStorageService;
 import com.microservice.document_processing_service.service.messaging.WebSocketNotificationService;
+import com.microservice.document_processing_service.service.processing.DocumentStateManager;
 import lombok.RequiredArgsConstructor;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.slf4j.Logger;
@@ -34,6 +35,7 @@ public class DocumentProcessingServiceImpl implements DocumentProcessingService 
     private final KafkaTemplate<String, String> documentKafkaTemplate;
     private final DocumentRepository documentRepository;
     private final WebSocketNotificationService webSocketNotificationService;
+    private final DocumentStateManager documentStateManager;
 
     @Override
     public List<String> processDocuments(List<MultipartFile> files, String userId, String date) {
@@ -65,6 +67,8 @@ public class DocumentProcessingServiceImpl implements DocumentProcessingService 
                 }
                 documentKafkaTemplate.send(record);
 
+                // Переводим в PROCESSING после отправки в очередь
+                documentStateManager.updateStatus(documentId, "PROCESSING");
                 responses.add("Document queued for processing: " + documentId);
                 logger.info("File '{}' queued for processing for user: {}", file.getOriginalFilename(), userId);
             } catch (Exception e) {
