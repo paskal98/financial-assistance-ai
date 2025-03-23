@@ -16,4 +16,5 @@ public class TransactionItemDto {
     private String description;
     private String paymentMethod;
     private UUID documentId;
+    private UUID userId;
 }
