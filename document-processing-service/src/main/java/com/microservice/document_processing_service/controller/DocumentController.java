@@ -31,6 +31,12 @@ public class DocumentController {
             @RequestParam(value = "userId") String userId,
             @RequestParam(value = "date", required = false) String date) {
         try {
+            UUID.fromString(userId);
+        } catch (IllegalArgumentException e) {
+            logger.warn("Invalid userId format: {}", userId);
+            return ResponseEntity.badRequest().body(List.of("Invalid userId format"));
+        }
+        try {
             List<String> responses = documentProcessingService.processDocuments(files, userId, date);
             return ResponseEntity.accepted().body(responses);
         } catch (IllegalArgumentException e) {

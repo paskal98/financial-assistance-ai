@@ -6,12 +6,14 @@ import com.microservice.document_processing_service.service.DocumentProcessingSe
 import com.microservice.document_processing_service.service.DocumentStorageService;
 import com.microservice.document_processing_service.service.messaging.WebSocketNotificationService;
 import lombok.RequiredArgsConstructor;
+import org.apache.kafka.clients.producer.ProducerRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -36,35 +38,32 @@ public class DocumentProcessingServiceImpl implements DocumentProcessingService 
     @Override
     public List<String> processDocuments(List<MultipartFile> files, String userId, String date) {
         validateFiles(files, userId);
-
         List<String> responses = new ArrayList<>();
-        String uuidRegex = "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}";
-        Pattern pattern = Pattern.compile(uuidRegex);
+        UUID parsedUserId = UUID.fromString(userId);
 
         for (MultipartFile file : files) {
             try {
                 String filePath = storageService.store(file);
-                Matcher matcher = pattern.matcher(filePath);
-                String documentId = matcher.find() ? matcher.group() : UUID.randomUUID().toString();
+                UUID documentId = UUID.randomUUID();
 
-                // Сохраняем документ в базе со статусом PENDING
                 Document document = new Document();
-                document.setId(UUID.fromString(documentId));
-                document.setUserId(UUID.fromString(userId));
+                document.setId(documentId);
+                document.setUserId(parsedUserId);
                 document.setFilePath(filePath);
                 document.setStatus("PENDING");
                 document.setCreatedAt(Instant.now());
                 document.setUpdatedAt(Instant.now());
                 documentRepository.save(document);
 
-                // Отправляем уведомление через WebSocket
                 webSocketNotificationService.sendStatusUpdate(document);
 
-                // Отправляем в Kafka
-                String message = filePath + "|" + userId + "|" + documentId + (date != null ? "|" + date : "");
-                logger.info("Sending message to Kafka: {}", message);
-                documentKafkaTemplate.send("ocr-processing-queue", message);
-                logger.info("Message sent to Kafka for document: {}", documentId);
+                ProducerRecord<String, String> record = new ProducerRecord<>("ocr-processing-queue", filePath);
+                record.headers().add("userId", userId.getBytes(StandardCharsets.UTF_8));
+                record.headers().add("documentId", documentId.toString().getBytes(StandardCharsets.UTF_8));
+                if (date != null) {
+                    record.headers().add("date", date.getBytes(StandardCharsets.UTF_8));
+                }
+                documentKafkaTemplate.send(record);
 
                 responses.add("Document queued for processing: " + documentId);
                 logger.info("File '{}' queued for processing for user: {}", file.getOriginalFilename(), userId);
@@ -73,7 +72,6 @@ public class DocumentProcessingServiceImpl implements DocumentProcessingService 
                 responses.add("Failed to process '" + file.getOriginalFilename() + "': " + e.getMessage());
             }
         }
-
         return responses;
     }
 
