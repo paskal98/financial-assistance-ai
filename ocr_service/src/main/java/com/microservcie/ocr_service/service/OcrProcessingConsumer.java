@@ -55,6 +55,8 @@ public class OcrProcessingConsumer {
             record.headers().add("userId", userId.getBytes(StandardCharsets.UTF_8));
             ocrResultKafkaTemplate.send(record);
 
+            // Уведомляем о переходе в CLASSIFYING
+            kafkaTemplate.send("ocr-feedback-queue", String.format("%s|CLASSIFYING", parsedDocumentId));
             logger.info("OCR completed for document: {}, compressed: {}", parsedDocumentId, isCompressed);
         } catch (Exception e) {
             logger.error("OCR failed for document: {}", parsedDocumentId, e);
