@@ -191,12 +191,13 @@ public class TransactionServiceImpl implements TransactionService {
     }
 
     @KafkaListener(topics = "transactions-topic", groupId = "transaction-group")
-    public void consumeTransactionFromDocument(
-            TransactionItemDto item,
-            @Header(name = "userId", required = false) String userIdHeader,
-            @Header(name = "documentId", required = false) String documentIdHeader) {
-        UUID userId = userIdHeader != null ? UUID.fromString(userIdHeader) : UUID.randomUUID();
-        UUID documentId = documentIdHeader != null ? UUID.fromString(documentIdHeader) : null;
+    public void consumeTransactionFromDocument(TransactionItemDto item) {
+        UUID userId = item.getUserId();
+        if (userId == null) {
+            logger.error("userId is missing in TransactionItemDto: {}", item);
+            throw new IllegalArgumentException("userId is required for transaction processing");
+        }
+        UUID documentId = item.getDocumentId();
         processTransactionFromDocument(item, userId, documentId);
     }
 
