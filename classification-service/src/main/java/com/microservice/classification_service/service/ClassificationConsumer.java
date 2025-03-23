@@ -24,6 +24,7 @@ public class ClassificationConsumer {
 
     private final OpenAiClassifier openAiClassifier;
     private final KafkaTemplate<String, TransactionItemDto> transactionKafkaTemplate;
+    private final KafkaTemplate<String, String> kafkaTemplate; // Добавляем для feedback
 
     @KafkaListener(topics = "classification-queue", groupId = "classification-group",
             containerFactory = "kafkaListenerContainerFactory")
@@ -31,7 +32,7 @@ public class ClassificationConsumer {
                                       @Header("userId") String userIdHeader) {
         String ocrText = message.isCompressed() ? CompressionUtils.decompress(message.getOcrText()) : message.getOcrText();
         UUID documentId = message.getDocumentId();
-        UUID userId = message.getUserId(); // Используем из сообщения
+        UUID userId = message.getUserId();
 
         try {
             logger.info("Starting classification for document: {}", documentId);
@@ -41,8 +42,12 @@ public class ClassificationConsumer {
                 items.forEach(item -> item.setDate(parsedDate));
             }
 
+            // Отправляем количество элементов в feedback-топик
+            kafkaTemplate.send("classification-feedback-queue",
+                    String.format("%s|ITEMS_COUNT|%d", documentId, items.size()));
+
             items.forEach(item -> {
-                item.setUserId(userId); // Устанавливаем userId
+                item.setUserId(userId);
                 ProducerRecord<String, TransactionItemDto> record = new ProducerRecord<>("transactions-topic", item);
                 record.headers().add("userId", userId.toString().getBytes(StandardCharsets.UTF_8));
                 transactionKafkaTemplate.send(record);
@@ -52,6 +57,8 @@ public class ClassificationConsumer {
             logger.info("Classification completed for document: {}, {} items", documentId, items.size());
         } catch (Exception e) {
             logger.error("Classification failed for document: {}", documentId, e);
+            kafkaTemplate.send("classification-feedback-queue",
+                    String.format("%s|FAILED|Classification error: %s", documentId, e.getMessage()));
         }
     }
 }
