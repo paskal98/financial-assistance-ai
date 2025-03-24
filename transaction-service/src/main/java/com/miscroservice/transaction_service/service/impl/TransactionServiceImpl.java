@@ -20,7 +20,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.core.KafkaTemplate;
-import org.springframework.messaging.handler.annotation.Header;
+import org.springframework.kafka.support.SendResult;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -30,6 +30,7 @@ import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -37,6 +38,7 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class TransactionServiceImpl implements TransactionService {
     private static final Logger logger = LoggerFactory.getLogger(TransactionServiceImpl.class);
+    private static final String FEEDBACK_TOPIC = "document-feedback-queue";
 
     private final TransactionRepository transactionRepository;
     private final CategoryRepository categoryRepository;
@@ -45,7 +47,6 @@ public class TransactionServiceImpl implements TransactionService {
 
     private static final String TRANSACTIONS_CACHE_PREFIX = "transactions:user:";
     private static final String STATS_CACHE_PREFIX = "stats:user:";
-
 
     @Override
     public TransactionResponse createTransaction(TransactionRequest request, UUID userId) {
@@ -150,7 +151,6 @@ public class TransactionServiceImpl implements TransactionService {
                         Collectors.reducing(BigDecimal.ZERO, Transaction::getAmount, BigDecimal::add)
                 ));
 
-        // Добавляем тренды по месяцам
         Map<String, BigDecimal> byMonth = transactions.stream()
                 .collect(Collectors.groupingBy(
                         t -> t.getDate().atZone(ZoneId.systemDefault()).toLocalDate().getMonth().toString(),
@@ -178,19 +178,18 @@ public class TransactionServiceImpl implements TransactionService {
             logger.info("Transaction saved from document: {}", transaction);
 
             FeedbackMessage successFeedback = new FeedbackMessage(documentId.toString(), "TRANSACTION", "SUCCESS", item.getName());
-            KafkaUtils.sendFeedback(feedbackKafkaTemplate, "document-feedback-queue", successFeedback);
-
+            sendFeedbackAndHandle(feedbackKafkaTemplate, FEEDBACK_TOPIC, successFeedback, documentId, "success");
             invalidateCache(userId);
         } catch (Exception e) {
             logger.error("Failed to process transaction from document: {}", item, e);
-
             FeedbackMessage failureFeedback = new FeedbackMessage(documentId.toString(), "TRANSACTION", "FAILED", e.getMessage());
-            KafkaUtils.sendFeedback(feedbackKafkaTemplate, "document-feedback-queue", failureFeedback);
+            sendFeedbackAndHandle(feedbackKafkaTemplate, FEEDBACK_TOPIC, failureFeedback, documentId, "failure");
             throw e;
         }
     }
 
-    @KafkaListener(topics = "transactions-topic", groupId = "transaction-group")
+    @KafkaListener(topics = "transactions-topic", groupId = "transaction-group",
+            containerFactory = "kafkaListenerContainerFactory")
     public void consumeTransactionFromDocument(TransactionItemDto item) {
         UUID userId = item.getUserId();
         if (userId == null) {
@@ -244,5 +243,19 @@ public class TransactionServiceImpl implements TransactionService {
         if (!type.equals("INCOME") && !type.equals("EXPENSE")) {
             throw new IllegalArgumentException("Type must be either 'INCOME' or 'EXPENSE'");
         }
+    }
+
+    private void sendFeedbackAndHandle(KafkaTemplate<String, String> kafkaTemplate, String topic,
+                                       FeedbackMessage message, UUID documentId, String phase) {
+        CompletableFuture<SendResult<String, String>> future = KafkaUtils.sendFeedback(kafkaTemplate, topic, message);
+        future.handle((result, ex) -> {
+            if (ex != null) {
+                logger.error("Failed to send {} feedback for document: {}, error: {}", phase, documentId, ex.getMessage(), ex);
+            } else {
+                logger.debug("Successfully sent {} feedback for document: {}, offset: {}", phase, documentId,
+                        result.getRecordMetadata().offset());
+            }
+            return null;
+        });
     }
 }

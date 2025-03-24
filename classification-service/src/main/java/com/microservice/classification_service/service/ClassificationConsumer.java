@@ -11,6 +11,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.kafka.support.SendResult;
 import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.stereotype.Service;
 
@@ -18,6 +19,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 
 @Service
 @RequiredArgsConstructor
@@ -40,7 +42,7 @@ public class ClassificationConsumer {
         try {
             logger.info("Starting classification for document: {}", documentId);
             FeedbackMessage startFeedback = new FeedbackMessage(documentId.toString(), "CLASSIFICATION", "STARTED", null);
-            KafkaUtils.sendFeedback(kafkaTemplate, FEEDBACK_TOPIC, startFeedback);
+            sendFeedbackAndHandle(kafkaTemplate, FEEDBACK_TOPIC, startFeedback, documentId, "start");
 
             List<TransactionItemDto> items = openAiClassifier.classifyItems(ocrText, documentId);
             if (message.getDate() != null) {
@@ -49,7 +51,7 @@ public class ClassificationConsumer {
             }
 
             FeedbackMessage itemsFeedback = new FeedbackMessage(documentId.toString(), "CLASSIFICATION", "ITEMS_COUNT", String.valueOf(items.size()));
-            KafkaUtils.sendFeedback(kafkaTemplate, FEEDBACK_TOPIC, itemsFeedback);
+            sendFeedbackAndHandle(kafkaTemplate, FEEDBACK_TOPIC, itemsFeedback, documentId, "items count");
 
             items.forEach(item -> {
                 item.setUserId(userId);
@@ -63,7 +65,21 @@ public class ClassificationConsumer {
         } catch (Exception e) {
             logger.error("Classification failed for document: {}", documentId, e);
             FeedbackMessage failureFeedback = new FeedbackMessage(documentId.toString(), "CLASSIFICATION", "FAILED", "Classification error: " + e.getMessage());
-            KafkaUtils.sendFeedback(kafkaTemplate, FEEDBACK_TOPIC, failureFeedback);
+            sendFeedbackAndHandle(kafkaTemplate, FEEDBACK_TOPIC, failureFeedback, documentId, "failure");
         }
+    }
+
+    private void sendFeedbackAndHandle(KafkaTemplate<String, String> kafkaTemplate, String topic,
+                                       FeedbackMessage message, UUID documentId, String phase) {
+        CompletableFuture<SendResult<String, String>> future = KafkaUtils.sendFeedback(kafkaTemplate, topic, message);
+        future.handle((result, ex) -> {
+            if (ex != null) {
+                logger.error("Failed to send {} feedback for document: {}, error: {}", phase, documentId, ex.getMessage(), ex);
+            } else {
+                logger.debug("Successfully sent {} feedback for document: {}, offset: {}", phase, documentId,
+                        result.getRecordMetadata().offset());
+            }
+            return null;
+        });
     }
 }

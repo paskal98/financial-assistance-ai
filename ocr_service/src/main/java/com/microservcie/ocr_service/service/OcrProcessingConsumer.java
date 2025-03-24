@@ -10,6 +10,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.kafka.support.SendResult;
 import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Service;
@@ -17,6 +18,7 @@ import org.springframework.stereotype.Service;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 
 @Service
 @RequiredArgsConstructor
@@ -40,7 +42,7 @@ public class OcrProcessingConsumer {
         try {
             logger.info("Starting OCR for document: {}", parsedDocumentId);
             FeedbackMessage startFeedback = new FeedbackMessage(documentId, "OCR", "EXTRACTING_TEXT", null);
-            KafkaUtils.sendFeedback(kafkaTemplate, FEEDBACK_TOPIC, startFeedback);
+            sendFeedbackAndHandle(kafkaTemplate, FEEDBACK_TOPIC, startFeedback, parsedDocumentId, "start");
 
             InputStream inputStream = fileDownloader.downloadFile(filePath, parsedDocumentId);
             String ocrText = tesseractOcrProcessor.extractText(inputStream, filePath, parsedDocumentId);
@@ -60,12 +62,26 @@ public class OcrProcessingConsumer {
             ocrResultKafkaTemplate.send(record);
 
             FeedbackMessage successFeedback = new FeedbackMessage(documentId, "OCR", "CLASSIFYING", null);
-            KafkaUtils.sendFeedback(kafkaTemplate, FEEDBACK_TOPIC, successFeedback);
+            sendFeedbackAndHandle(kafkaTemplate, FEEDBACK_TOPIC, successFeedback, parsedDocumentId, "success");
             logger.info("OCR completed for document: {}, compressed: {}", parsedDocumentId, isCompressed);
         } catch (Exception e) {
             logger.error("OCR failed for document: {}", parsedDocumentId, e);
             FeedbackMessage failureFeedback = new FeedbackMessage(documentId, "OCR", "FAILED", "OCR error: " + e.getMessage());
-            KafkaUtils.sendFeedback(kafkaTemplate, FEEDBACK_TOPIC, failureFeedback);
+            sendFeedbackAndHandle(kafkaTemplate, FEEDBACK_TOPIC, failureFeedback, parsedDocumentId, "failure");
         }
+    }
+
+    private void sendFeedbackAndHandle(KafkaTemplate<String, String> kafkaTemplate, String topic,
+                                       FeedbackMessage message, UUID documentId, String phase) {
+        CompletableFuture<SendResult<String, String>> future = KafkaUtils.sendFeedback(kafkaTemplate, topic, message);
+        future.handle((result, ex) -> {
+            if (ex != null) {
+                logger.error("Failed to send {} feedback for document: {}, error: {}", phase, documentId, ex.getMessage(), ex);
+            } else {
+                logger.debug("Successfully sent {} feedback for document: {}, offset: {}", phase, documentId,
+                        result.getRecordMetadata().offset());
+            }
+            return null;
+        });
     }
 }
