@@ -5,6 +5,8 @@ import com.microservice.classification_service.model.dto.TransactionItemDto;
 import com.microservice.classification_service.utils.CompressionUtils;
 import lombok.RequiredArgsConstructor;
 import org.apache.kafka.clients.producer.ProducerRecord;
+import org.shared.dto.FeedbackMessage;
+import org.shared.utils.KafkaUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -21,10 +23,11 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class ClassificationConsumer {
     private static final Logger logger = LoggerFactory.getLogger(ClassificationConsumer.class);
+    private static final String FEEDBACK_TOPIC = "document-feedback-queue";
 
     private final OpenAiClassifier openAiClassifier;
     private final KafkaTemplate<String, TransactionItemDto> transactionKafkaTemplate;
-    private final KafkaTemplate<String, String> kafkaTemplate; // Добавляем для feedback
+    private final KafkaTemplate<String, String> kafkaTemplate;
 
     @KafkaListener(topics = "classification-queue", groupId = "classification-group",
             containerFactory = "kafkaListenerContainerFactory")
@@ -36,15 +39,17 @@ public class ClassificationConsumer {
 
         try {
             logger.info("Starting classification for document: {}", documentId);
+            FeedbackMessage startFeedback = new FeedbackMessage(documentId.toString(), "CLASSIFICATION", "STARTED", null);
+            KafkaUtils.sendFeedback(kafkaTemplate, FEEDBACK_TOPIC, startFeedback);
+
             List<TransactionItemDto> items = openAiClassifier.classifyItems(ocrText, documentId);
             if (message.getDate() != null) {
                 Instant parsedDate = Instant.parse(message.getDate());
                 items.forEach(item -> item.setDate(parsedDate));
             }
 
-            // Отправляем количество элементов в feedback-топик
-            kafkaTemplate.send("classification-feedback-queue",
-                    String.format("%s|ITEMS_COUNT|%d", documentId, items.size()));
+            FeedbackMessage itemsFeedback = new FeedbackMessage(documentId.toString(), "CLASSIFICATION", "ITEMS_COUNT", String.valueOf(items.size()));
+            KafkaUtils.sendFeedback(kafkaTemplate, FEEDBACK_TOPIC, itemsFeedback);
 
             items.forEach(item -> {
                 item.setUserId(userId);
@@ -57,8 +62,8 @@ public class ClassificationConsumer {
             logger.info("Classification completed for document: {}, {} items", documentId, items.size());
         } catch (Exception e) {
             logger.error("Classification failed for document: {}", documentId, e);
-            kafkaTemplate.send("classification-feedback-queue",
-                    String.format("%s|FAILED|Classification error: %s", documentId, e.getMessage()));
+            FeedbackMessage failureFeedback = new FeedbackMessage(documentId.toString(), "CLASSIFICATION", "FAILED", "Classification error: " + e.getMessage());
+            KafkaUtils.sendFeedback(kafkaTemplate, FEEDBACK_TOPIC, failureFeedback);
         }
     }
 }
