@@ -1,7 +1,5 @@
 plugins {
     id 'java'
-    id 'org.springframework.boot' version '3.2.3'
-    id 'io.spring.dependency-management' version '1.1.7'
     id 'maven-publish'
 }
 
@@ -10,7 +8,7 @@ version = '1.0-SNAPSHOT'
 
 java {
     toolchain {
-        languageVersion = JavaLanguageVersion.of(17) // Укажи версию Java
+        languageVersion = JavaLanguageVersion.of(17)
     }
 }
 
@@ -19,13 +17,13 @@ repositories {
 }
 
 dependencies {
-    implementation 'com.fasterxml.jackson.core:jackson-databind'
-    implementation 'org.springframework.kafka:spring-kafka'
-    compileOnly 'org.projectlombok:lombok'
-    annotationProcessor 'org.projectlombok:lombok'
+    implementation 'com.fasterxml.jackson.core:jackson-databind:2.15.2'  // Указываем версию
+    implementation 'org.springframework.kafka:spring-kafka:3.1.2'        // Указываем версию
+    compileOnly 'org.projectlombok:lombok:1.18.30'                      // Указываем версию
+    annotationProcessor 'org.projectlombok:lombok:1.18.30'              // Указываем версию
 
     testImplementation platform('org.junit:junit-bom:5.10.0')
-    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.10.0'         // Указываем версию
 }
 
 test {
