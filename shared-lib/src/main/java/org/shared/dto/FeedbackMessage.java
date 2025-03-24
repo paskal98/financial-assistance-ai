@@ -1,10 +1,14 @@
 package org.shared.dto;
 
+import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 import java.time.Instant;
 
 @Data
+@NoArgsConstructor
+@AllArgsConstructor
 public class FeedbackMessage {
     private String documentId;
     private String stage; // "OCR", "CLASSIFICATION", "TRANSACTION"
