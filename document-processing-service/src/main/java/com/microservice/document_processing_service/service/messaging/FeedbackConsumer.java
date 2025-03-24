@@ -46,9 +46,11 @@ public class FeedbackConsumer {
                     } else if ("FAILED".equals(status)) {
                         documentStateManager.updateStatus(documentId, "FAILED", "Classification error: " + details);
                         processingStateService.clearState(documentId);
+                    } else if ("STARTED".equals(status)){
+                        documentStateManager.updateStatus(documentId, "STARTED_CLASSIFYING");
                     } else {
-                        documentStateManager.updateStatus(documentId, status, details);
-                    }
+                    documentStateManager.updateStatus(documentId, status, details);
+                }
                     break;
                 case "TRANSACTION":
                     if ("SUCCESS".equals(status)) {
@@ -66,6 +68,27 @@ public class FeedbackConsumer {
             }
         } catch (Exception e) {
             logger.error("Failed to process feedback: {}", feedbackJson, e);
+        }
+    }
+
+    @KafkaListener(topics = "document-feedback-queue-dlq", groupId = "doc-feedback-dlq-group",
+            containerFactory = "feedbackKafkaListenerContainerFactory")
+    public void handleDlqFeedback(String feedbackJson) {
+        try {
+            FeedbackMessage feedback = objectMapper.readValue(feedbackJson, FeedbackMessage.class);
+            UUID documentId = UUID.fromString(feedback.getDocumentId());
+            String stage = feedback.getStage();
+            String originalStatus = feedback.getStatus();
+            String details = feedback.getDetails();
+
+            logger.warn("Received DLQ feedback for document {}: stage={}, status={}, details={}", documentId, stage, originalStatus, details);
+
+            String errorMessage = String.format("Failed to process %s stage after retries: %s (sent to DLQ)", stage, details != null ? details : "Unknown error");
+            documentStateManager.updateStatus(documentId, "FAILED", errorMessage);
+            processingStateService.clearState(documentId);
+
+        } catch (Exception e) {
+            logger.error("Failed to process DLQ feedback: {}", feedbackJson, e);
         }
     }
 }

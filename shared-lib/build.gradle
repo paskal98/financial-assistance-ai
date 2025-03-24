@@ -17,13 +17,17 @@ repositories {
 }
 
 dependencies {
-    implementation 'com.fasterxml.jackson.core:jackson-databind:2.15.2'  // Указываем версию
-    implementation 'org.springframework.kafka:spring-kafka:3.1.2'        // Указываем версию
-    compileOnly 'org.projectlombok:lombok:1.18.30'                      // Указываем версию
-    annotationProcessor 'org.projectlombok:lombok:1.18.30'              // Указываем версию
+    implementation 'com.fasterxml.jackson.core:jackson-databind:2.15.2'
+    implementation 'org.springframework.kafka:spring-kafka:3.1.2'
+    implementation 'io.github.resilience4j:resilience4j-spring-boot3:2.2.0'
+    implementation 'net.sourceforge.tess4j:tess4j:5.10.0'
+    implementation 'org.springframework.retry:spring-retry'
+
+    compileOnly 'org.projectlombok:lombok:1.18.30'
+    annotationProcessor 'org.projectlombok:lombok:1.18.30'
 
     testImplementation platform('org.junit:junit-bom:5.10.0')
-    testImplementation 'org.junit.jupiter:junit-jupiter:5.10.0'         // Указываем версию
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.10.0'
 }
 
 test {
