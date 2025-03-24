@@ -11,6 +11,8 @@ import com.miscroservice.transaction_service.repository.CategoryRepository;
 import com.miscroservice.transaction_service.repository.TransactionRepository;
 import com.miscroservice.transaction_service.service.TransactionService;
 import lombok.RequiredArgsConstructor;
+import org.shared.dto.FeedbackMessage;
+import org.shared.utils.KafkaUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
@@ -175,18 +177,16 @@ public class TransactionServiceImpl implements TransactionService {
             transactionRepository.save(transaction);
             logger.info("Transaction saved from document: {}", transaction);
 
-            // Отправляем успешный результат в feedback-топик
-            String feedbackMessage = String.format("%s|%s|SUCCESS", documentId, item.getName());
-            feedbackKafkaTemplate.send("document-transaction-feedback", feedbackMessage);
+            FeedbackMessage successFeedback = new FeedbackMessage(documentId.toString(), "TRANSACTION", "SUCCESS", item.getName());
+            KafkaUtils.sendFeedback(feedbackKafkaTemplate, "document-feedback-queue", successFeedback);
 
             invalidateCache(userId);
         } catch (Exception e) {
             logger.error("Failed to process transaction from document: {}", item, e);
 
-            // Отправляем сообщение об ошибке в feedback-топик
-            String feedbackMessage = String.format("%s|%s|FAILED|%s", documentId, item.getName(), e.getMessage());
-            feedbackKafkaTemplate.send("document-transaction-feedback", feedbackMessage);
-            throw e; // Повторная попытка через RetryableTopic
+            FeedbackMessage failureFeedback = new FeedbackMessage(documentId.toString(), "TRANSACTION", "FAILED", e.getMessage());
+            KafkaUtils.sendFeedback(feedbackKafkaTemplate, "document-feedback-queue", failureFeedback);
+            throw e;
         }
     }
 
