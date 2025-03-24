@@ -33,6 +33,8 @@ dependencies {
 	implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310'
 	implementation 'ch.qos.logback:logback-classic'
 	implementation 'org.shared:shared-lib:1.0-SNAPSHOT'
+	implementation 'io.minio:minio:8.5.7'
+
 
 	compileOnly 'org.projectlombok:lombok'
 	annotationProcessor 'org.projectlombok:lombok'

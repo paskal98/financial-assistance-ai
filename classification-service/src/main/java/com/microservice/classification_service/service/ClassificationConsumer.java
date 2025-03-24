@@ -1,23 +1,28 @@
 package com.microservice.classification_service.service;
 
-import com.microservice.classification_service.model.dto.OcrResultMessage;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.microservice.classification_service.model.dto.TransactionItemDto;
-import com.microservice.classification_service.utils.CompressionUtils;
+import io.minio.GetObjectArgs;
+import io.minio.MinioClient;
 import lombok.RequiredArgsConstructor;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.shared.dto.FeedbackMessage;
 import org.shared.utils.KafkaUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.support.SendResult;
 import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.stereotype.Service;
 
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
@@ -30,23 +35,41 @@ public class ClassificationConsumer {
     private final OpenAiClassifier openAiClassifier;
     private final KafkaTemplate<String, TransactionItemDto> transactionKafkaTemplate;
     private final KafkaTemplate<String, String> kafkaTemplate;
+    private final MinioClient minioClient;
+    private final ObjectMapper objectMapper = new ObjectMapper();
+
+    @Value("${minio.bucket}")
+    private String bucketName;
 
     @KafkaListener(topics = "classification-queue", groupId = "classification-group",
             containerFactory = "kafkaListenerContainerFactory")
-    public void processClassification(OcrResultMessage message,
+    public void processClassification(String messageJson,
                                       @Header("userId") String userIdHeader) {
-        String ocrText = message.isCompressed() ? CompressionUtils.decompress(message.getOcrText()) : message.getOcrText();
-        UUID documentId = message.getDocumentId();
-        UUID userId = message.getUserId();
-
         try {
+            Map<String, String> message = objectMapper.readValue(messageJson, new TypeReference<>() {});
+            UUID documentId = UUID.fromString(message.get("documentId"));
+            UUID userId = UUID.fromString(message.get("userId"));
+            String textPath = message.get("textPath");
+            String date = message.get("date");
+
             logger.info("Starting classification for document: {}", documentId);
             FeedbackMessage startFeedback = new FeedbackMessage(documentId.toString(), "CLASSIFICATION", "STARTED", null);
             sendFeedbackAndHandle(kafkaTemplate, FEEDBACK_TOPIC, startFeedback, documentId, "start");
 
+
+            String ocrText;
+            try (InputStream inputStream = minioClient.getObject(
+                    GetObjectArgs.builder()
+                            .bucket(bucketName)
+                            .object(textPath)
+                            .build())) {
+                ocrText = new String(inputStream.readAllBytes(), StandardCharsets.UTF_8);
+            }
+            logger.info("Loaded OCR text from MinIO for document: {}", documentId);
+
             List<TransactionItemDto> items = openAiClassifier.classifyItems(ocrText, documentId);
-            if (message.getDate() != null) {
-                Instant parsedDate = Instant.parse(message.getDate());
+            if (date != null) {
+                Instant parsedDate = Instant.parse(date);
                 items.forEach(item -> item.setDate(parsedDate));
             }
 
@@ -63,9 +86,19 @@ public class ClassificationConsumer {
 
             logger.info("Classification completed for document: {}, {} items", documentId, items.size());
         } catch (Exception e) {
-            logger.error("Classification failed for document: {}", documentId, e);
+            logger.error("Classification failed: {}", e.getMessage(), e);
+            UUID documentId = extractDocumentIdFromMessage(messageJson); // Вспомогательный метод
             FeedbackMessage failureFeedback = new FeedbackMessage(documentId.toString(), "CLASSIFICATION", "FAILED", "Classification error: " + e.getMessage());
             sendFeedbackAndHandle(kafkaTemplate, FEEDBACK_TOPIC, failureFeedback, documentId, "failure");
+        }
+    }
+
+    private UUID extractDocumentIdFromMessage(String messageJson) {
+        try {
+            Map<String, String> message = objectMapper.readValue(messageJson, new TypeReference<>() {});
+            return UUID.fromString(message.get("documentId"));
+        } catch (Exception e) {
+            return UUID.randomUUID(); // Fallback, если не удалось извлечь
         }
     }
 

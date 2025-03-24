@@ -1,13 +1,15 @@
 package com.microservcie.ocr_service.service;
 
-import com.microservcie.ocr_service.model.dto.OcrResultMessage;
-import com.microservcie.ocr_service.utils.CompressionUtils;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import io.minio.MinioClient;
+import io.minio.PutObjectArgs;
 import lombok.RequiredArgsConstructor;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.shared.dto.FeedbackMessage;
 import org.shared.utils.KafkaUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.support.SendResult;
@@ -15,8 +17,11 @@ import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Service;
 
+import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
@@ -28,8 +33,13 @@ public class OcrProcessingConsumer {
 
     private final TesseractOcrProcessor tesseractOcrProcessor;
     private final FileDownloader fileDownloader;
-    private final KafkaTemplate<String, OcrResultMessage> ocrResultKafkaTemplate;
     private final KafkaTemplate<String, String> kafkaTemplate;
+    private final MinioClient minioClient;
+    private final ObjectMapper objectMapper = new ObjectMapper();
+
+
+    @Value("${minio.bucket}")
+    private String bucketName;
 
     @KafkaListener(topics = "ocr-processing-queue", groupId = "ocr-processing-group", concurrency = "20")
     public void processOcr(@Payload String filePath,
@@ -47,23 +57,30 @@ public class OcrProcessingConsumer {
             InputStream inputStream = fileDownloader.downloadFile(filePath, parsedDocumentId);
             String ocrText = tesseractOcrProcessor.extractText(inputStream, filePath, parsedDocumentId);
 
-            String processedOcrText = CompressionUtils.compress(ocrText);
-            boolean isCompressed = !processedOcrText.equals(ocrText);
+            String textObjectName = "ocr-text/" + parsedDocumentId + ".txt";
+            minioClient.putObject(
+                    PutObjectArgs.builder()
+                            .bucket(bucketName)
+                            .object(textObjectName)
+                            .stream(new ByteArrayInputStream(ocrText.getBytes(StandardCharsets.UTF_8)), ocrText.length(), -1)
+                            .contentType("text/plain")
+                            .build()
+            );
+            logger.info("OCR text saved to MinIO: {}", textObjectName);
 
-            OcrResultMessage resultMessage = new OcrResultMessage();
-            resultMessage.setOcrText(processedOcrText);
-            resultMessage.setDocumentId(parsedDocumentId);
-            resultMessage.setUserId(parsedUserId);
-            resultMessage.setDate(date);
-            resultMessage.setCompressed(isCompressed);
-
-            ProducerRecord<String, OcrResultMessage> record = new ProducerRecord<>("classification-queue", resultMessage);
+            String message = objectMapper.writeValueAsString(Map.of(
+                    "documentId", parsedDocumentId.toString(),
+                    "userId", parsedUserId,
+                    "textPath", textObjectName,
+                    "date", date != null ? date : Instant.now().toString()
+            ));
+            ProducerRecord<String, String> record = new ProducerRecord<>("classification-queue", message);
             record.headers().add("userId", userId.getBytes(StandardCharsets.UTF_8));
-            ocrResultKafkaTemplate.send(record);
+            kafkaTemplate.send(record);
 
             FeedbackMessage successFeedback = new FeedbackMessage(documentId, "OCR", "CLASSIFYING", null);
             sendFeedbackAndHandle(kafkaTemplate, FEEDBACK_TOPIC, successFeedback, parsedDocumentId, "success");
-            logger.info("OCR completed for document: {}, compressed: {}", parsedDocumentId, isCompressed);
+            logger.info("OCR completed for document: {}", parsedDocumentId);
         } catch (Exception e) {
             logger.error("OCR failed for document: {}", parsedDocumentId, e);
             FeedbackMessage failureFeedback = new FeedbackMessage(documentId, "OCR", "FAILED", "OCR error: " + e.getMessage());
