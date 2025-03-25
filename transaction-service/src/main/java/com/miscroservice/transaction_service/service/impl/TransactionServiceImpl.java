@@ -10,6 +10,7 @@ import com.miscroservice.transaction_service.model.entity.Transaction;
 import com.miscroservice.transaction_service.repository.CategoryRepository;
 import com.miscroservice.transaction_service.repository.TransactionRepository;
 import com.miscroservice.transaction_service.service.TransactionService;
+import io.lettuce.core.RedisConnectionException;
 import lombok.RequiredArgsConstructor;
 import org.shared.dto.FeedbackMessage;
 import org.shared.utils.KafkaUtils;
@@ -21,15 +22,15 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.support.SendResult;
+import org.springframework.retry.annotation.Backoff;
+import org.springframework.retry.annotation.Retryable;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -62,7 +63,14 @@ public class TransactionServiceImpl implements TransactionService {
         transaction.setPaymentMethod(request.getPaymentMethod());
         transaction.setCreatedAt(Instant.now());
         transaction.setUpdatedAt(Instant.now());
-        transaction = transactionRepository.save(transaction);
+
+        try {
+            transaction = transactionRepository.save(transaction);
+        } catch (Exception e) {
+            logger.error("Failed to save transaction for user: {}", userId, e);
+            throw new RuntimeException("Failed to create transaction", e);
+        }
+
         invalidateCache(userId);
         return mapToResponse(transaction);
     }
@@ -226,11 +234,37 @@ public class TransactionServiceImpl implements TransactionService {
         return transaction;
     }
 
+    @Retryable(value = RedisConnectionException.class, maxAttempts = 3, backoff = @Backoff(delay = 1000))
+    private Set<String> fetchKeys(String pattern) {
+        return redisTemplate.keys(pattern);
+    }
+
     private void invalidateCache(UUID userId) {
-        String transactionsCacheKey = TRANSACTIONS_CACHE_PREFIX + userId + "*";
-        String statsCacheKey = STATS_CACHE_PREFIX + userId + "*";
-        redisTemplate.delete(redisTemplate.keys(transactionsCacheKey));
-        redisTemplate.delete(redisTemplate.keys(statsCacheKey));
+        Set<String> keysToDelete = new HashSet<>();
+        boolean transactionKeysFetched = false;
+        boolean statsKeysFetched = false;
+
+        try {
+            keysToDelete.addAll(fetchKeys(TRANSACTIONS_CACHE_PREFIX + userId + "*"));
+            transactionKeysFetched = true;
+        } catch (Exception e) {
+            logger.warn("Failed to fetch transaction cache keys for user: {}", userId, e);
+        }
+
+        try {
+            keysToDelete.addAll(fetchKeys(STATS_CACHE_PREFIX + userId + "*"));
+            statsKeysFetched = true;
+        } catch (Exception e) {
+            logger.warn("Failed to fetch stats cache keys for user: {}", userId, e);
+        }
+
+        if (!keysToDelete.isEmpty() && (transactionKeysFetched || statsKeysFetched)) {
+            try {
+                redisTemplate.delete(keysToDelete);
+            } catch (Exception e) {
+                logger.warn("Failed to delete cache keys for user: {}", userId, e);
+            }
+        }
     }
 
     private void validateCategory(String categoryName) {
@@ -247,15 +281,27 @@ public class TransactionServiceImpl implements TransactionService {
 
     private void sendFeedbackAndHandle(KafkaTemplate<String, String> kafkaTemplate, String topic,
                                        FeedbackMessage message, UUID documentId, String phase) {
-        CompletableFuture<SendResult<String, String>> future = KafkaUtils.sendFeedback(kafkaTemplate, topic, message);
-        future.handle((result, ex) -> {
-            if (ex != null) {
-                logger.error("Failed to send {} feedback for document: {}, error: {}", phase, documentId, ex.getMessage(), ex);
-            } else {
-                logger.debug("Successfully sent {} feedback for document: {}, offset: {}", phase, documentId,
-                        result.getRecordMetadata().offset());
+        int maxAttempts = 3;
+        for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+            try {
+                CompletableFuture<SendResult<String, String>> future = KafkaUtils.sendFeedback(kafkaTemplate, topic, message);
+                future.whenComplete((result, ex) -> {
+                    if (ex != null) {
+                        logger.error("Failed to send {} feedback for document: {}", phase, documentId, ex);
+                    }
+                });
+                break;
+            } catch (Exception e) {
+                if (attempt == maxAttempts) {
+                    logger.error("Failed to send {} feedback after {} attempts for document: {}", phase, maxAttempts, documentId, e);
+                }
+                try {
+                    Thread.sleep(1000 * attempt); // Backoff
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                }
             }
-            return null;
-        });
+        }
     }
+
 }
