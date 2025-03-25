@@ -9,6 +9,8 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.redis.core.ValueOperations;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.Collections;
 import java.util.List;
@@ -105,13 +107,16 @@ public class TransactionFetchingTest extends BaseTransactionTest{
 
     @Test
     void getTransactions_WithFilters_Success() {
+        Instant now = Instant.now();
+        Instant from = now.minus(Duration.ofDays(1));
+        Instant to = now.plus(Duration.ofDays(1));
         // Arrange
         Pageable pageable = PageRequest.of(0, 10);
         Page<Transaction> transactionPage = new PageImpl<>(List.of(transaction));
         when(transactionRepository.findByFilters(
                 eq(userId),
-                eq(LocalDate.now()),
-                eq(LocalDate.now()),
+                eq(from),
+                eq(to),
                 eq("Salary"),
                 eq("INCOME"),
                 eq(pageable)
@@ -125,8 +130,8 @@ public class TransactionFetchingTest extends BaseTransactionTest{
         // Act
         Page<TransactionResponse> result = transactionService.getTransactions(
                 userId,
-                LocalDate.now().toString(),
-                LocalDate.now().toString(),
+                from,
+                to,
                 "Salary",
                 "INCOME",
                 pageable
@@ -137,7 +142,7 @@ public class TransactionFetchingTest extends BaseTransactionTest{
         assertEquals(1, result.getTotalElements());
         TransactionResponse response = result.getContent().get(0);
         assertEquals(transaction.getId(), response.getId());
-        verify(transactionRepository).findByFilters(userId, LocalDate.now(), LocalDate.now(), "Salary", "INCOME", pageable);
+        verify(transactionRepository).findByFilters(userId, from, to, "Salary", "INCOME", pageable);
         verify(redisTemplate, times(2)).opsForValue();
         verify(valueOperations).get(anyString());
         verify(valueOperations).set(anyString(), any(), eq(10L), eq(TimeUnit.MINUTES));

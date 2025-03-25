@@ -21,8 +21,8 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID> 
             "AND (COALESCE(:type, t.type) = t.type)")
     Page<Transaction> findByFilters(
             @Param("userId") UUID userId,
-            @Param("startDate") LocalDate startDate,
-            @Param("endDate") LocalDate endDate,
+            @Param("startDate") Instant startDate,
+            @Param("endDate") Instant endDate,
             @Param("category") String category,
             @Param("type") String type,
             Pageable pageable);

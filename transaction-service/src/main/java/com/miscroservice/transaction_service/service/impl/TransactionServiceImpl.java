@@ -2,6 +2,7 @@ package com.miscroservice.transaction_service.service.impl;
 
 import com.miscroservice.transaction_service.exception.AccessDeniedException;
 import com.miscroservice.transaction_service.exception.TransactionNotFoundException;
+import com.miscroservice.transaction_service.exception.ValidationException;
 import com.miscroservice.transaction_service.model.dto.TransactionItemDto;
 import com.miscroservice.transaction_service.model.dto.TransactionRequest;
 import com.miscroservice.transaction_service.model.dto.TransactionResponse;
@@ -25,6 +26,7 @@ import org.springframework.kafka.support.SendResult;
 import org.springframework.retry.annotation.Backoff;
 import org.springframework.retry.annotation.Retryable;
 import org.springframework.stereotype.Service;
+import org.springframework.validation.BindingResult;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -50,7 +52,9 @@ public class TransactionServiceImpl implements TransactionService {
     private static final String STATS_CACHE_PREFIX = "stats:user:";
 
     @Override
-    public TransactionResponse createTransaction(TransactionRequest request, UUID userId) {
+    public TransactionResponse createTransaction(TransactionRequest request, UUID userId, BindingResult bindingResult) {
+        validateRequest(bindingResult);
+
         validateCategory(request.getCategory());
         validateType(request.getType());
         Transaction transaction = new Transaction();
@@ -77,7 +81,7 @@ public class TransactionServiceImpl implements TransactionService {
 
     @Override
     public Page<TransactionResponse> getTransactions(
-            UUID userId, String startDate, String endDate, String category, String type, Pageable pageable) {
+            UUID userId, Instant startDate, Instant endDate, String category, String type, Pageable pageable) {
         String cacheKey = TRANSACTIONS_CACHE_PREFIX + userId + ":" + startDate + ":" + endDate + ":" +
                 category + ":" + type + ":" + pageable.getPageNumber() + ":" + pageable.getPageSize();
         @SuppressWarnings("unchecked")
@@ -87,8 +91,8 @@ public class TransactionServiceImpl implements TransactionService {
             return cachedTransactions;
         }
 
-        LocalDate start = startDate != null ? LocalDate.parse(startDate) : null;
-        LocalDate end = endDate != null ? LocalDate.parse(endDate) : null;
+        Instant start = startDate != null ? startDate : null;
+        Instant end = endDate != null ? endDate : null;
         Page<Transaction> transactions = transactionRepository.findByFilters(userId, start, end, category, type, pageable);
         Page<TransactionResponse> response = transactions.map(this::mapToResponse);
 
@@ -97,16 +101,20 @@ public class TransactionServiceImpl implements TransactionService {
     }
 
     @Override
-    public TransactionResponse updateTransaction(UUID id, TransactionRequest request, UUID userId) {
+    public TransactionResponse updateTransaction(UUID id, TransactionRequest request, UUID userId, BindingResult bindingResult) {
+        validateRequest(bindingResult);
+
         Transaction transaction = transactionRepository.findById(id)
                 .orElseThrow(TransactionNotFoundException::new);
         if (!transaction.getUserId().equals(userId)) {
             throw new AccessDeniedException("You can only update your own transactions");
         }
+
         validateCategory(request.getCategory());
         validateType(request.getType());
         transaction.setAmount(request.getAmount());
         transaction.setCategory(request.getCategory());
+        transaction.setType(request.getType());
         transaction.setDescription(request.getDescription());
         transaction.setUpdatedAt(Instant.now());
         transaction = transactionRepository.save(transaction);
@@ -276,6 +284,18 @@ public class TransactionServiceImpl implements TransactionService {
     private void validateType(String type) {
         if (!type.equals("INCOME") && !type.equals("EXPENSE")) {
             throw new IllegalArgumentException("Type must be either 'INCOME' or 'EXPENSE'");
+        }
+    }
+
+    private void validateRequest(BindingResult bindingResult) {
+        logger.info("Validating request with BindingResult: hasErrors={}", bindingResult.hasErrors());
+        if (bindingResult.hasErrors()) {
+            String errorMessage = bindingResult.getFieldErrors().stream()
+                    .map(error -> error.getField() + ": " + error.getDefaultMessage())
+                    .reduce((a, b) -> a + "; " + b)
+                    .orElse("Validation failed");
+            logger.info("Validation failed: {}", errorMessage);
+            throw new ValidationException(errorMessage);
         }
     }
 
