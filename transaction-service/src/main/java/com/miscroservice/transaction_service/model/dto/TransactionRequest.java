@@ -9,18 +9,18 @@ import java.math.BigDecimal;
 @Data
 public class TransactionRequest {
 
-    @NotNull
+    @NotNull(message = "Amount cannot be null")
     private BigDecimal amount;
 
-    @NotBlank
+    @NotBlank(message = "Type cannot be blank")
     private String type;
 
-    @NotBlank
+    @NotBlank(message = "Category cannot be blank")
     private String category;
 
     private String description;
 
-    @NotBlank
+    @NotBlank(message = "Date cannot be blank")
     private String date;
 
     private String paymentMethod;

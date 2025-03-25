@@ -4,15 +4,19 @@ import com.miscroservice.transaction_service.model.dto.TransactionRequest;
 import com.miscroservice.transaction_service.model.dto.TransactionResponse;
 import com.miscroservice.transaction_service.model.dto.TransactionStatsResponse;
 import com.miscroservice.transaction_service.service.TransactionService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -26,17 +30,18 @@ public class TransactionController {
 
     @PostMapping
     public ResponseEntity<TransactionResponse> createTransaction(
-            @RequestBody TransactionRequest request,
-            @AuthenticationPrincipal String userId) {
-        TransactionResponse response = transactionService.createTransaction(request, UUID.fromString(userId));
+            @Valid @RequestBody TransactionRequest request,
+            @AuthenticationPrincipal String userId,
+            BindingResult bindingResult) {
+        TransactionResponse response = transactionService.createTransaction(request, UUID.fromString(userId), bindingResult);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
     @GetMapping
     public ResponseEntity<Page<TransactionResponse>> getTransactions(
             @AuthenticationPrincipal String userId,
-            @RequestParam(required = false) String startDate,
-            @RequestParam(required = false) String endDate,
+            @RequestParam(value = "startDate", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant startDate,
+            @RequestParam(value = "endDate", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant endDate,
             @RequestParam(required = false) String category,
             @RequestParam(required = false) String type,
             @RequestParam(defaultValue = "0") int page,
@@ -50,9 +55,10 @@ public class TransactionController {
     @PutMapping("/{id}")
     public ResponseEntity<TransactionResponse> updateTransaction(
             @PathVariable UUID id,
-            @RequestBody TransactionRequest request,
-            @AuthenticationPrincipal String userId) {
-        TransactionResponse response = transactionService.updateTransaction(id, request, UUID.fromString(userId));
+            @Valid @RequestBody TransactionRequest request,
+            @AuthenticationPrincipal String userId,
+            BindingResult bindingResult) {
+        TransactionResponse response = transactionService.updateTransaction(id, request, UUID.fromString(userId), bindingResult);
         return ResponseEntity.ok(response);
     }
 

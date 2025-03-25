@@ -10,10 +10,13 @@ import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.validation.BindingResult;
 
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
+
+import static org.mockito.Mockito.when;
 
 abstract class BaseTransactionTest {
 
@@ -22,6 +25,7 @@ abstract class BaseTransactionTest {
     @Mock protected CategoryRepository categoryRepository;
     @Mock protected RedisTemplate<String, Object> redisTemplate;
     @Mock protected KafkaTemplate<String, String> feedbackKafkaTemplate;
+    @Mock protected BindingResult bindingResult;
 
     protected TransactionServiceImpl transactionService;
     protected UUID userId;
@@ -61,5 +65,7 @@ abstract class BaseTransactionTest {
         transactionRequest.setCategory("Salary");
         transactionRequest.setDescription("Monthly salary");
         transactionRequest.setDate(Instant.now().toString());
+
+        when(bindingResult.hasErrors()).thenReturn(false);
     }
 }

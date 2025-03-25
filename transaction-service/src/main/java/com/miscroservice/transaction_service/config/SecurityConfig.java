@@ -2,6 +2,7 @@ package com.miscroservice.transaction_service.config;
 
 import com.miscroservice.transaction_service.security.JwtAuthFilter;
 import com.miscroservice.transaction_service.security.JwtUtil;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -18,14 +19,24 @@ public class SecurityConfig {
     private final JwtUtil jwtUtil;
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    public JwtAuthFilter jwtAuthFilter() {
+        return new JwtAuthFilter(jwtUtil);
+    }
+
+    @Bean
+    public SecurityFilterChain securityFilterChain(HttpSecurity http, JwtAuthFilter jwtAuthFilter) throws Exception {
         http
                 .csrf().disable()
+                .httpBasic().disable()
+                .formLogin().disable()
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/actuator/**").permitAll() // Для мониторинга
+                        .requestMatchers("/actuator/**").permitAll()
                         .anyRequest().authenticated()
                 )
-                .addFilterBefore(new JwtAuthFilter(jwtUtil), UsernamePasswordAuthenticationFilter.class);
+                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
+                .exceptionHandling().authenticationEntryPoint((request, response, authException) -> {
+                    response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Authentication required");
+                });
         return http.build();
     }
 }
