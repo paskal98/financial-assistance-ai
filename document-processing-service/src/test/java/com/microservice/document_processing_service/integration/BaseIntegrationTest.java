@@ -13,6 +13,7 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.GenericContainer;
@@ -25,8 +26,11 @@ import io.restassured.RestAssured;
 
 import java.util.UUID;
 
+import static org.mockito.ArgumentMatchers.anyString;
+
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @Testcontainers
+@DirtiesContext(classMode = DirtiesContext.ClassMode.BEFORE_EACH_TEST_METHOD)
 public abstract class BaseIntegrationTest {
 
     @LocalServerPort
@@ -42,6 +46,7 @@ public abstract class BaseIntegrationTest {
     protected JwtUtil jwtUtil;
 
     protected UUID userId;
+
 
     @Container
     protected static final PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:15")
@@ -77,16 +82,13 @@ public abstract class BaseIntegrationTest {
         RestAssured.port = port;
         userId = UUID.randomUUID();
 
-        // Мокаем JwtUtil
-        Mockito.when(jwtUtil.validateToken("mock-token")).thenReturn(true);
-        Mockito.when(jwtUtil.extractUserId("mock-token")).thenReturn(userId.toString());
+        Mockito.when(jwtUtil.validateToken(anyString())).thenReturn(true);
+        Mockito.when(jwtUtil.extractUserId(anyString())).thenReturn(userId.toString());
 
-        // Принудительно устанавливаем контекст безопасности
         UsernamePasswordAuthenticationToken auth =
                 new UsernamePasswordAuthenticationToken(userId.toString(), null, null);
         SecurityContextHolder.getContext().setAuthentication(auth);
 
-        // Очистка базы перед тестом
         documentRepository.deleteAll();
     }
 
