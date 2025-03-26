@@ -1,5 +1,7 @@
 package com.microservice.document_processing_service.service.core;
 
+import com.microservice.document_processing_service.exception.DocumentAccessDeniedException;
+import com.microservice.document_processing_service.model.dto.DocumentStatusResponse;
 import com.microservice.document_processing_service.model.entity.Document;
 import com.microservice.document_processing_service.repository.DocumentRepository;
 import com.microservice.document_processing_service.service.DocumentProcessingService;
@@ -15,6 +17,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.nio.charset.StandardCharsets;
+import java.nio.file.AccessDeniedException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -77,6 +80,19 @@ public class DocumentProcessingServiceImpl implements DocumentProcessingService 
             }
         }
         return responses;
+    }
+
+    @Override
+    public DocumentStatusResponse getDocumentStatus(UUID documentId, String userId) {
+        Document document = documentRepository.findById(documentId)
+                .orElseThrow(() -> new IllegalArgumentException("Document not found: " + documentId));
+
+        if (!document.getUserId().toString().equals(userId)) {
+            logger.warn("User {} attempted to access document {} owned by another user", userId, documentId);
+            throw new DocumentAccessDeniedException("You do not own this document");
+        }
+
+        return new DocumentStatusResponse(document.getStatus(), document.getErrorMessage());
     }
 
     private void validateFiles(List<MultipartFile> files, String userId) {
