@@ -31,22 +31,9 @@ public class DocumentController {
             @RequestParam("files") List<MultipartFile> files,
             @AuthenticationPrincipal String userId,
             @RequestParam(value = "date", required = false) String date) {
-        try {
-            UUID.fromString(userId);
-        } catch (IllegalArgumentException e) {
-            logger.warn("Invalid userId format from token: {}", userId);
-            return ResponseEntity.badRequest().body(List.of("Invalid userId format"));
-        }
-        try {
-            List<String> responses = documentProcessingService.processDocuments(files, userId, date);
-            return ResponseEntity.accepted().body(responses);
-        } catch (IllegalArgumentException e) {
-            logger.warn("Validation failed for upload request by user {}: {}", userId, e.getMessage());
-            return ResponseEntity.badRequest().body(List.of(e.getMessage()));
-        } catch (Exception e) {
-            logger.error("Unexpected error during document upload for user {}: {}", userId, e.getMessage());
-            return ResponseEntity.internalServerError().body(List.of("Internal server error: " + e.getMessage()));
-        }
+        UUID.fromString(userId);
+        List<String> responses = documentProcessingService.processDocuments(files, userId, date);
+        return ResponseEntity.accepted().body(responses);
     }
 
     @GetMapping("/{documentId}/status")

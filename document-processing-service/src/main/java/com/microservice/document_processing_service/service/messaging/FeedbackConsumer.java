@@ -3,15 +3,20 @@ package com.microservice.document_processing_service.service.messaging;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.microservice.document_processing_service.service.processing.DocumentStateManager;
 import com.microservice.document_processing_service.service.processing.ProcessingStateService;
-
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import org.shared.dto.FeedbackMessage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.stereotype.Component;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -21,50 +26,29 @@ public class FeedbackConsumer {
     private final DocumentStateManager documentStateManager;
     private final ProcessingStateService processingStateService;
     private final ObjectMapper objectMapper;
+    private final List<FeedbackHandler> handlerList;
+    private Map<String, FeedbackHandler> handlers;
+
+    @PostConstruct
+    public void init() {
+        handlers = handlerList.stream()
+                .collect(Collectors.toMap(
+                        FeedbackHandler::getStage,
+                        Function.identity(),
+                        (existing, replacement) -> existing
+                ));
+    }
 
     @KafkaListener(topics = "document-feedback-queue", groupId = "doc-feedback-group",
             containerFactory = "feedbackKafkaListenerContainerFactory")
     public void handleFeedback(String feedbackJson) {
         try {
             FeedbackMessage feedback = objectMapper.readValue(feedbackJson, FeedbackMessage.class);
-            UUID documentId = UUID.fromString(feedback.getDocumentId());
-            String stage = feedback.getStage();
-            String status = feedback.getStatus();
-            String details = feedback.getDetails();
-
-            logger.info("Received feedback for document {}: stage={}, status={}, details={}", documentId, stage, status, details);
-
-            switch (stage) {
-                case "OCR":
-                    documentStateManager.updateStatus(documentId, status, details);
-                    break;
-                case "CLASSIFICATION":
-                    if ("ITEMS_COUNT".equals(status)) {
-                        int totalItems = Integer.parseInt(details);
-                        processingStateService.initializeState(documentId, totalItems);
-                        documentStateManager.updateStatus(documentId, "CLASSIFYING");
-                    } else if ("FAILED".equals(status)) {
-                        documentStateManager.updateStatus(documentId, "FAILED", "Classification error: " + details);
-                        processingStateService.clearState(documentId);
-                    } else if ("STARTED".equals(status)){
-                        documentStateManager.updateStatus(documentId, "STARTED_CLASSIFYING");
-                    } else {
-                    documentStateManager.updateStatus(documentId, status, details);
-                }
-                    break;
-                case "TRANSACTION":
-                    if ("SUCCESS".equals(status)) {
-                        processingStateService.incrementProcessed(documentId);
-                        if (processingStateService.isProcessingComplete(documentId)) {
-                            documentStateManager.updateStatus(documentId, "PROCESSED");
-                        }
-                    } else if ("FAILED".equals(status)) {
-                        documentStateManager.updateStatus(documentId, "FAILED", "Transaction error: " + details);
-                        processingStateService.clearState(documentId);
-                    }
-                    break;
-                default:
-                    logger.warn("Unknown stage '{}' for document {}", stage, documentId);
+            FeedbackHandler handler = handlers.get(feedback.getStage());
+            if (handler != null) {
+                handler.handle(feedback, documentStateManager, processingStateService);
+            } else {
+                logger.warn("Unknown stage '{}' for document {}", feedback.getStage(), feedback.getDocumentId());
             }
         } catch (Exception e) {
             logger.error("Failed to process feedback: {}", feedbackJson, e);
@@ -86,7 +70,6 @@ public class FeedbackConsumer {
             String errorMessage = String.format("Failed to process %s stage after retries: %s (sent to DLQ)", stage, details != null ? details : "Unknown error");
             documentStateManager.updateStatus(documentId, "FAILED", errorMessage);
             processingStateService.clearState(documentId);
-
         } catch (Exception e) {
             logger.error("Failed to process DLQ feedback: {}", feedbackJson, e);
         }
