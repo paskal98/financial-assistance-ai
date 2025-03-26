@@ -20,7 +20,7 @@ public class DocumentStorageServiceImpl implements DocumentStorageService {
     private final MinioClient minioClient;
 
     @Value("${minio.bucket}")
-    private String bucketName;
+    protected String bucketName;
 
     @Override
     public String store(MultipartFile file) {

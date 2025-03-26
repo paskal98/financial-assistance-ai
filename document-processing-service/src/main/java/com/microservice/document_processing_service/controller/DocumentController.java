@@ -8,6 +8,7 @@ import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -28,12 +29,12 @@ public class DocumentController {
     @PostMapping(value = "/upload", consumes = "multipart/form-data")
     public ResponseEntity<List<String>> uploadDocuments(
             @RequestParam("files") List<MultipartFile> files,
-            @RequestParam(value = "userId") String userId,
+            @AuthenticationPrincipal String userId,
             @RequestParam(value = "date", required = false) String date) {
         try {
             UUID.fromString(userId);
         } catch (IllegalArgumentException e) {
-            logger.warn("Invalid userId format: {}", userId);
+            logger.warn("Invalid userId format from token: {}", userId);
             return ResponseEntity.badRequest().body(List.of("Invalid userId format"));
         }
         try {
@@ -49,9 +50,15 @@ public class DocumentController {
     }
 
     @GetMapping("/{documentId}/status")
-    public ResponseEntity<DocumentStatusResponse> getDocumentStatus(@PathVariable UUID documentId) {
+    public ResponseEntity<DocumentStatusResponse> getDocumentStatus(
+            @PathVariable UUID documentId,
+            @AuthenticationPrincipal String userId) {
         Document document = documentRepository.findById(documentId)
                 .orElseThrow(() -> new IllegalArgumentException("Document not found: " + documentId));
+        if (!document.getUserId().toString().equals(userId)) {
+            logger.warn("User {} attempted to access document {} owned by another user", userId, documentId);
+            return ResponseEntity.status(403).body(new DocumentStatusResponse("FORBIDDEN", "You do not own this document"));
+        }
         DocumentStatusResponse response = new DocumentStatusResponse(document.getStatus(), document.getErrorMessage());
         return ResponseEntity.ok(response);
     }
