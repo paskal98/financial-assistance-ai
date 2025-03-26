@@ -138,13 +138,14 @@ public class DocumentUploadTest extends BaseIntegrationTest {
         documentRepository.save(document);
 
         given()
-                .header("Authorization", "Bearer mock-token") // Текущий userId из BaseIntegrationTest
+                .header("Authorization", "Bearer mock-token")
                 .when()
                 .get("/documents/" + documentId + "/status")
                 .then()
                 .statusCode(HttpStatus.FORBIDDEN.value())
-                .body("status", equalTo("FORBIDDEN"))
-                .body("errorMessage", equalTo("You do not own this document"));
+                .body("message", equalTo("Access denied"))
+                .body("details", equalTo("You do not own this document"))
+                .body("status", equalTo(403));
     }
 
     @Test
