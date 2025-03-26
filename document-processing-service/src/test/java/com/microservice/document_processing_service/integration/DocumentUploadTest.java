@@ -44,7 +44,9 @@ public class DocumentUploadTest extends BaseIntegrationTest {
                 .post("/documents/upload")
                 .then()
                 .statusCode(HttpStatus.BAD_REQUEST.value())
-                .body(containsString("Unsupported file type"));
+                .body("message", equalTo("Validation error"))
+                .body("details", containsString("Unsupported file type: text/plain"))
+                .body("status", equalTo(400));
     }
 
     @Test
@@ -88,7 +90,6 @@ public class DocumentUploadTest extends BaseIntegrationTest {
 
     @Test
     void uploadDocument_FileTooLarge() {
-        byte[] largeFileContent = new byte[6 * 1024 * 1024]; // 6MB
         File largeFile = new File("src/test/resources/large.pdf");
 
         given()
@@ -146,7 +147,6 @@ public class DocumentUploadTest extends BaseIntegrationTest {
                 .body("errorMessage", equalTo("You do not own this document"));
     }
 
-    // Новый тест: Попытка получить статус несуществующего документа
     @Test
     void getDocumentStatus_DocumentNotFound() {
         UUID nonExistentDocumentId = UUID.randomUUID();

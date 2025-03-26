@@ -1,5 +1,6 @@
 package com.microservice.document_processing_service.exception;
 
+import com.microservice.document_processing_service.model.dto.ErrorResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -19,58 +20,67 @@ import java.util.stream.Collectors;
 @ControllerAdvice
 public class GlobalExceptionHandler {
 
+    // Вспомогательный метод для создания ответа
+    private ResponseEntity<ErrorResponse> buildErrorResponse(HttpStatus status, String message, String details) {
+        return ResponseEntity.status(status)
+                .body(new ErrorResponse(message, details, status.value()));
+    }
+
     @ExceptionHandler(IllegalArgumentException.class)
-    public ResponseEntity<String> handleIllegalArgument(IllegalArgumentException ex) {
+    public ResponseEntity<ErrorResponse> handleIllegalArgument(IllegalArgumentException ex) {
         log.warn("Validation failed: {}", ex.getMessage());
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ex.getMessage());
+        return buildErrorResponse(HttpStatus.BAD_REQUEST, "Validation error", ex.getMessage());
     }
 
     @ExceptionHandler(MultipartException.class)
-    public ResponseEntity<String> handleMultipartError(MultipartException ex, HttpServletRequest request) {
+    public ResponseEntity<ErrorResponse> handleMultipartError(MultipartException ex, HttpServletRequest request) {
         log.warn("Failed to process multipart request to {}: {}", request.getRequestURI(), ex.getMessage());
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Invalid multipart request");
+        String details = ex instanceof MaxUploadSizeExceededException
+                ? "File exceeds size limit of 5MB"
+                : ex.getMessage();
+        return buildErrorResponse(HttpStatus.BAD_REQUEST, "Multipart request error", details);
     }
 
     @ExceptionHandler(MissingServletRequestParameterException.class)
-    public ResponseEntity<String> handleMissingParam(MissingServletRequestParameterException ex) {
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body("Missing required parameter: " + ex.getParameterName());
+    public ResponseEntity<ErrorResponse> handleMissingParam(MissingServletRequestParameterException ex) {
+        log.warn("Missing required parameter: {}", ex.getParameterName());
+        return buildErrorResponse(HttpStatus.BAD_REQUEST, "Missing parameter",
+                "Missing required parameter: " + ex.getParameterName());
     }
 
     @ExceptionHandler(MissingServletRequestPartException.class)
-    public ResponseEntity<String> handleMissingRequestPart(MissingServletRequestPartException ex) {
+    public ResponseEntity<ErrorResponse> handleMissingRequestPart(MissingServletRequestPartException ex) {
         log.warn("Missing required multipart part: {}", ex.getRequestPartName());
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body("Missing required part: " + ex.getRequestPartName());
+        return buildErrorResponse(HttpStatus.BAD_REQUEST, "Missing request part",
+                "Missing required part: " + ex.getRequestPartName());
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<String> handleValidation(MethodArgumentNotValidException ex) {
-        String errorMessage = ex.getBindingResult().getFieldErrors().stream()
+    public ResponseEntity<ErrorResponse> handleValidation(MethodArgumentNotValidException ex) {
+        String errorDetails = ex.getBindingResult().getFieldErrors().stream()
                 .map(error -> error.getField() + ": " + error.getDefaultMessage())
                 .collect(Collectors.joining("; "));
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Validation error: " + errorMessage);
+        log.warn("Validation failed: {}", errorDetails);
+        return buildErrorResponse(HttpStatus.BAD_REQUEST, "Validation error", errorDetails);
     }
 
     @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
-    public ResponseEntity<String> handleUnsupportedMedia(HttpMediaTypeNotSupportedException ex) {
-        return ResponseEntity.status(HttpStatus.UNSUPPORTED_MEDIA_TYPE)
-                .body("Unsupported content type: " + ex.getContentType());
+    public ResponseEntity<ErrorResponse> handleUnsupportedMedia(HttpMediaTypeNotSupportedException ex) {
+        log.warn("Unsupported content type: {}", ex.getContentType());
+        return buildErrorResponse(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "Unsupported media type",
+                "Unsupported content type: " + ex.getContentType());
     }
 
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<String> handleGenericError(Exception ex, HttpServletRequest request) {
+    public ResponseEntity<ErrorResponse> handleGenericError(Exception ex, HttpServletRequest request) {
         log.error("Unhandled exception during request to {}: {}", request.getRequestURI(), ex.getMessage(), ex);
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body("Internal server error: " + ex.getMessage());
+        return buildErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR, "Internal server error", ex.getMessage());
     }
 
-    // Handle specific MaxUploadSizeExceededException
     @ExceptionHandler(MaxUploadSizeExceededException.class)
-    public ResponseEntity<String> handleMaxUploadSizeExceeded(MaxUploadSizeExceededException ex, HttpServletRequest request) {
+    public ResponseEntity<ErrorResponse> handleMaxUploadSizeExceeded(MaxUploadSizeExceededException ex, HttpServletRequest request) {
         log.warn("Failed to process multipart request to {}: Maximum upload size exceeded", request.getRequestURI());
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body("File exceeds size limit of 5MB");
+        return buildErrorResponse(HttpStatus.BAD_REQUEST, "File exceeds size limit of 5MB", "");
     }
 
 
