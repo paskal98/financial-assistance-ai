@@ -1,23 +1,22 @@
 package com.microservice.report_service.service.impl;
 
 import com.microservice.report_service.exception.ReportGenerationException;
-import com.microservice.report_service.model.dto.PagedTransactionResponse;
-import com.microservice.report_service.model.dto.ReportRequest;
-import com.microservice.report_service.model.dto.ReportResponse;
-import com.microservice.report_service.model.dto.TransactionResponse;
+import com.microservice.report_service.model.dto.*;
 import com.microservice.report_service.model.entity.ReportMetadata;
+import com.microservice.report_service.model.entity.ReportSummary;
 import com.microservice.report_service.repository.ReportMetadataRepository;
 import com.microservice.report_service.security.JwtUtil;
 import com.microservice.report_service.service.ReportService;
+import com.microservice.report_service.service.analytics.ReportAnalyticsService;
 import com.microservice.report_service.service.client.TransactionClient;
 import com.microservice.report_service.util.CsvReportGenerator;
 import com.microservice.report_service.util.PdfReportGenerator;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Page;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 
@@ -25,6 +24,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class ReportServiceImpl implements ReportService {
 
+    private final ReportAnalyticsService analyticsService;
     private final TransactionClient transactionClient;
     private final ReportMetadataRepository metadataRepository;
     private final PdfReportGenerator pdfReportGenerator;
@@ -36,7 +36,8 @@ public class ReportServiceImpl implements ReportService {
         try {
             String jwtToken = SecurityContextHolder.getContext().getAuthentication().getCredentials().toString();
 
-            PagedTransactionResponse transactionsResponse = transactionClient.getTransactions(
+            // Получение текущих транзакций
+            PagedTransactionResponse thisPeriod = transactionClient.getTransactions(
                     "Bearer " + jwtToken,
                     request.getStartDate().toString(),
                     request.getEndDate().toString(),
@@ -45,15 +46,38 @@ public class ReportServiceImpl implements ReportService {
                     0,
                     1000
             );
-            List<TransactionResponse> transactions = transactionsResponse.getContent();
+            List<TransactionResponse> currentTransactions = thisPeriod.getContent();
+
+            // Определим предыдущий период по тем же датам
+            Instant start = request.getStartDate();
+            Instant end = request.getEndDate();
+
+            long days = java.time.Duration.between(start, end).toDays() + 1;
+
+            Instant prevStart = start.minus(java.time.Duration.ofDays(days));
+            Instant prevEnd = end.minus(java.time.Duration.ofDays(days));
+
+
+            // Получение транзакций за предыдущий период
+            PagedTransactionResponse lastPeriod = transactionClient.getTransactions(
+                    "Bearer " + jwtToken,
+                    prevStart.toString(),
+                    prevEnd.toString(),
+                    request.getCategory(),
+                    request.getType(),
+                    0,
+                    1000
+            );
+            List<TransactionResponse> previousTransactions = lastPeriod.getContent();
+
+            ReportSummary summary = analyticsService.analyze(currentTransactions, previousTransactions);
 
             String fileUrl = switch (request.getFormat().toLowerCase()) {
-                case "pdf" -> pdfReportGenerator.generateReport(transactions, request);
-                case "csv" -> csvReportGenerator.generateReport(transactions, request);
+                case "pdf" -> pdfReportGenerator.generateReport(currentTransactions, request, summary);
+                case "csv" -> csvReportGenerator.generateReport(currentTransactions, request);
                 default -> throw new ReportGenerationException("Unsupported report format: " + request.getFormat());
             };
 
-            // Rest of the method remains the same
             ReportMetadata metadata = new ReportMetadata();
             metadata.setUserId(UUID.fromString(jwtUtil.extractUserId(token.substring(7))));
             metadata.setFileUrl(fileUrl);
@@ -61,7 +85,7 @@ public class ReportServiceImpl implements ReportService {
             metadata.setGeneratedAt(Instant.now());
             metadata.setStartDate(request.getStartDate());
             metadata.setEndDate(request.getEndDate());
-            metadata.setCategories(request.getCategory()); // Fixed: No need for String.join
+            metadata.setCategories(request.getCategory());
             metadata.setType(request.getType());
 
             metadataRepository.save(metadata);
@@ -72,7 +96,6 @@ public class ReportServiceImpl implements ReportService {
             throw new ReportGenerationException("Report generation failed: " + e.getMessage());
         }
     }
-
 
     @Override
     public List<ReportResponse> getReportHistory(String token) {
