@@ -22,9 +22,6 @@ public class ReportMetadata {
     private String fileUrl;
 
     @Column(nullable = false)
-    private String format;
-
-    @Column(nullable = false)
     private Instant generatedAt;
 
     private Instant startDate;

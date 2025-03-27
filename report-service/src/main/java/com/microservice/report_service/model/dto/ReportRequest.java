@@ -10,5 +10,4 @@ public class ReportRequest {
     private Instant endDate;
     private String category;
     private String type;
-    private String format;
 }
