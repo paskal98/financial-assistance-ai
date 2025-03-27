@@ -32,6 +32,8 @@ dependencyManagement {
 dependencies {
 	implementation("org.springframework.boot:spring-boot-starter-web")
 	implementation("org.springframework.boot:spring-boot-starter-data-jpa")
+	implementation("org.springframework.boot:spring-boot-starter-web")
+	implementation("org.springframework.boot:spring-boot-starter-data-jpa")
 	implementation("org.springframework.boot:spring-boot-starter-data-redis")
 	implementation("org.springframework.boot:spring-boot-starter-security")
 	implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310'
@@ -39,15 +41,13 @@ dependencies {
 	implementation 'org.springframework.data:spring-data-commons'
 	implementation("io.github.openfeign:feign-jackson:9.3.1")
 	implementation("org.springframework.kafka:spring-kafka")
-	implementation("org.apache.pdfbox:pdfbox:2.0.29")
-	implementation("com.opencsv:opencsv:5.7.1")
+	implementation("com.opencsv:opencsv:5.7.1") // Оставляем для CSV
 	implementation 'org.springframework.cloud:spring-cloud-starter-openfeign'
 	implementation 'io.minio:minio:8.5.10'
-	implementation 'org.jfree:jfreechart:1.5.4'
-	runtimeOnly("org.postgresql:postgresql")
 	implementation("io.jsonwebtoken:jjwt-api:0.11.5")
 	runtimeOnly("io.jsonwebtoken:jjwt-impl:0.11.5")
 	runtimeOnly("io.jsonwebtoken:jjwt-jackson:0.11.5")
+	runtimeOnly("org.postgresql:postgresql")
 	compileOnly("org.projectlombok:lombok")
 	annotationProcessor("org.projectlombok:lombok")
 }
