@@ -18,6 +18,7 @@ import org.shared.utils.KafkaUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -84,11 +85,12 @@ public class TransactionServiceImpl implements TransactionService {
             UUID userId, Instant startDate, Instant endDate, String category, String type, Pageable pageable) {
         String cacheKey = TRANSACTIONS_CACHE_PREFIX + userId + ":" + startDate + ":" + endDate + ":" +
                 category + ":" + type + ":" + pageable.getPageNumber() + ":" + pageable.getPageSize();
-        @SuppressWarnings("unchecked")
-        Page<TransactionResponse> cachedTransactions = (Page<TransactionResponse>) redisTemplate.opsForValue().get(cacheKey);
 
-        if (cachedTransactions != null) {
-            return cachedTransactions;
+        @SuppressWarnings("unchecked")
+        List<TransactionResponse> cachedContent = (List<TransactionResponse>) redisTemplate.opsForValue().get(cacheKey);
+
+        if (cachedContent != null) {
+            return new PageImpl<>(cachedContent, pageable, cachedContent.size());
         }
 
         Instant start = startDate != null ? startDate : null;
@@ -96,7 +98,7 @@ public class TransactionServiceImpl implements TransactionService {
         Page<Transaction> transactions = transactionRepository.findByFilters(userId, start, end, category, type, pageable);
         Page<TransactionResponse> response = transactions.map(this::mapToResponse);
 
-        redisTemplate.opsForValue().set(cacheKey, response, 10, TimeUnit.MINUTES);
+        redisTemplate.opsForValue().set(cacheKey, response.getContent(), 10, TimeUnit.MINUTES);
         return response;
     }
 

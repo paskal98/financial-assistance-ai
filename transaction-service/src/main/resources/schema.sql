@@ -57,7 +57,7 @@ INSERT INTO categories (name, type) VALUES
                                         ('Subscriptions', 'EXPENSE'),
                                         ('Rent', 'EXPENSE'),
                                         ('Taxes', 'EXPENSE'),
-                                        ('Gifts Given', 'EXPENSE'),  -- Подарки, которые ты даришь
+                                        ('Gifts Given', 'EXPENSE'),
                                         ('Pets', 'EXPENSE'),
                                         ('Hobbies', 'EXPENSE'),
                                         ('Insurance', 'EXPENSE'),
@@ -70,7 +70,7 @@ INSERT INTO categories (name, type) VALUES
                                         ('Freelance', 'INCOME'),
                                         ('Investments', 'INCOME'),
                                         ('Bonuses', 'INCOME'),
-                                        ('Gifts Received', 'INCOME'),  -- Подарки, которые тебе подарили
+                                        ('Gifts Received', 'INCOME'),
                                         ('Refunds', 'INCOME'),
                                         ('Passive Income', 'INCOME'),
                                         ('Sales', 'INCOME'),
