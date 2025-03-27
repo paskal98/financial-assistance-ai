@@ -11,6 +11,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.Collection;
 import java.util.Date;
+import java.util.List;
 import java.util.UUID;
 import java.util.function.Function;
 import javax.crypto.SecretKey;
@@ -20,12 +21,12 @@ import lombok.extern.slf4j.Slf4j;
 @Component
 public class JwtUtil {
     @Value("${jwt.secret}")
-    private String secret;
+    public String secret;
 
     private SecretKey secretKey;
 
     @Value("${jwt.expiration}")
-    private long expirationMs;
+    public long expirationMs;
 
     @PostConstruct
     public void init() {
@@ -54,6 +55,8 @@ public class JwtUtil {
         return extractClaim(token, Claims::getSubject);
     }
 
+
+
     public boolean validateToken(String token) {
         try {
             Jwts.parser()
@@ -63,21 +66,27 @@ public class JwtUtil {
             return true;
         } catch (ExpiredJwtException e) {
             log.warn("JWT expired at: {}", e.getClaims().getExpiration());
-            throw new JwtValidationException("Token expired", (Collection<OAuth2Error>) e);
+            OAuth2Error error = new OAuth2Error("token_expired", "Token expired at " + e.getClaims().getExpiration(), null);
+            throw new JwtValidationException("Token expired", List.of(error));
         } catch (UnsupportedJwtException e) {
             log.warn("Unsupported JWT: {}", e.getMessage());
-            throw new JwtValidationException("Unsupported JWT", (Collection<OAuth2Error>) e);
+            OAuth2Error error = new OAuth2Error("unsupported_jwt", "Unsupported JWT", null);
+            throw new JwtValidationException("Unsupported JWT", List.of(error));
         } catch (MalformedJwtException e) {
             log.warn("Malformed JWT: {}", e.getMessage());
-            throw new JwtValidationException("Malformed JWT", (Collection<OAuth2Error>) e);
+            OAuth2Error error = new OAuth2Error("malformed_jwt", "Malformed JWT", null);
+            throw new JwtValidationException("Malformed JWT", List.of(error));
         } catch (SignatureException e) {
             log.warn("Invalid signature: {}", e.getMessage());
-            throw new JwtValidationException("Invalid JWT signature", (Collection<OAuth2Error>) e);
+            OAuth2Error error = new OAuth2Error("invalid_signature", "Invalid JWT signature", null);
+            throw new JwtValidationException("Invalid JWT signature", List.of(error));
         } catch (JwtException e) {
             log.warn("Invalid JWT: {}", e.getMessage());
-            throw new JwtValidationException("Invalid JWT", (Collection<OAuth2Error>) e);
+            OAuth2Error error = new OAuth2Error("invalid_jwt", "Invalid JWT", null);
+            throw new JwtValidationException("Invalid JWT", List.of(error));
         }
     }
+
 
     private <T> T extractClaim(String token, Function<Claims, T> claimsResolver) {
         Claims claims = Jwts.parser()
