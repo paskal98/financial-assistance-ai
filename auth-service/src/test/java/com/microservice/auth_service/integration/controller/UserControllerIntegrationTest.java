@@ -69,4 +69,73 @@ public class UserControllerIntegrationTest extends BaseControllerIntegrationTest
         assertTrue((Boolean) userResponse.getBody().get("2FAEnabled"));
         assertNotNull(userResponse.getBody().get("twoFASecret"));
     }
+
+    @Test
+    void getCurrentUser_withInvalidToken_fails() {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth("invalid-jwt-token");
+        HttpEntity<Void> entity = new HttpEntity<>(headers);
+
+        String getUserUrl = "http://localhost:" + port + "/user/me";
+        ResponseEntity<Map> response = restTemplate.exchange(getUserUrl, HttpMethod.GET, entity, Map.class);
+
+        assertEquals(HttpStatus.UNAUTHORIZED, response.getStatusCode());
+        assertTrue(response.getBody().get("error").toString().contains("Invalid or expired JWT token"));
+    }
+
+    @Test
+    void enable2FA_withAlreadyEnabled_fails() {
+        AuthRequest registerRequest = new AuthRequest();
+        registerRequest.setEmail("test@example.com");
+        registerRequest.setPassword("password");
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        HttpEntity<AuthRequest> registerEntity = new HttpEntity<>(registerRequest, headers);
+
+        String registerUrl = "http://localhost:" + port + "/auth/register";
+        ResponseEntity<Map> registerResponse = restTemplate.postForEntity(registerUrl, registerEntity, Map.class);
+        String token = (String) registerResponse.getBody().get("token");
+
+        headers.setBearerAuth(token);
+        HttpEntity<Void> enable2FAEntity = new HttpEntity<>(headers);
+        String enable2FAUrl = "http://localhost:" + port + "/user/2fa/enable";
+        ResponseEntity<Map> firstResponse = restTemplate.exchange(enable2FAUrl, HttpMethod.POST, enable2FAEntity, Map.class);
+        assertEquals(HttpStatus.OK, firstResponse.getStatusCode());
+
+        ResponseEntity<Map> secondResponse = restTemplate.exchange(enable2FAUrl, HttpMethod.POST, enable2FAEntity, Map.class);
+        assertEquals(HttpStatus.OK, secondResponse.getStatusCode());
+    }
+
+    @Test
+    void disable2FAWithBackupCode_withInvalidCode_fails() {
+        AuthRequest registerRequest = new AuthRequest();
+        registerRequest.setEmail("test@example.com");
+        registerRequest.setPassword("password");
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        HttpEntity<AuthRequest> registerEntity = new HttpEntity<>(registerRequest, headers);
+
+        String registerUrl = "http://localhost:" + port + "/auth/register";
+        ResponseEntity<Map> registerResponse = restTemplate.postForEntity(registerUrl, registerEntity, Map.class);
+        String token = (String) registerResponse.getBody().get("token");
+
+        headers.setBearerAuth(token);
+        HttpEntity<Void> enable2FAEntity = new HttpEntity<>(headers);
+        String enable2FAUrl = "http://localhost:" + port + "/user/2fa/enable";
+        restTemplate.exchange(enable2FAUrl, HttpMethod.POST, enable2FAEntity, Map.class);
+
+        String backupCodesUrl = "http://localhost:" + port + "/user/2fa/backup-codes";
+        ResponseEntity<Map> backupResponse = restTemplate.exchange(backupCodesUrl, HttpMethod.POST, enable2FAEntity, Map.class);
+        assertEquals(HttpStatus.OK, backupResponse.getStatusCode());
+
+        Map<String, String> request = Map.of("backupCode", "invalid-code");
+        HttpEntity<Map<String, String>> disableEntity = new HttpEntity<>(request, headers);
+        String disableUrl = "http://localhost:" + port + "/user/2fa/disable-with-backup";
+        ResponseEntity<Map> response = restTemplate.exchange(disableUrl, HttpMethod.POST, disableEntity, Map.class);
+
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+        assertEquals("Invalid backup code.", response.getBody().get("error"));
+    }
 }
