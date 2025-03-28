@@ -5,10 +5,54 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="179bba50-283b-4b61-af4e-6737b253b9bd" name="Changes" comment="[fix] update gradle">
+      <change afterPath="$PROJECT_DIR$/../balance-service/.gitattributes" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../balance-service/.gitignore" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../balance-service/build.gradle" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../balance-service/gradle/wrapper/gradle-wrapper.jar" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../balance-service/gradle/wrapper/gradle-wrapper.properties" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../balance-service/gradlew" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../balance-service/gradlew.bat" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../balance-service/settings.gradle" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../balance-service/src/main/java/com/microservice/balance_service/BalanceServiceApplication.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../balance-service/src/main/java/com/microservice/balance_service/config/KafkaConfig.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../balance-service/src/main/java/com/microservice/balance_service/config/RedisConfig.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../balance-service/src/main/java/com/microservice/balance_service/config/SecurityConfig.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../balance-service/src/main/java/com/microservice/balance_service/controller/BalanceController.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../balance-service/src/main/java/com/microservice/balance_service/controller/SavingsController.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../balance-service/src/main/java/com/microservice/balance_service/model/dto/SavingsGoalRequest.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../balance-service/src/main/java/com/microservice/balance_service/model/dto/SavingsGoalResponse.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../balance-service/src/main/java/com/microservice/balance_service/model/dto/TransactionEvent.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../balance-service/src/main/java/com/microservice/balance_service/model/dto/UserBalanceResponse.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../balance-service/src/main/java/com/microservice/balance_service/model/entity/SavingsGoal.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../balance-service/src/main/java/com/microservice/balance_service/model/entity/UserBalance.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../balance-service/src/main/java/com/microservice/balance_service/repository/SavingsGoalRepository.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../balance-service/src/main/java/com/microservice/balance_service/repository/UserBalanceRepository.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../balance-service/src/main/java/com/microservice/balance_service/security/JwtAuthFilter.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../balance-service/src/main/java/com/microservice/balance_service/security/JwtUtil.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../balance-service/src/main/java/com/microservice/balance_service/service/BalanceService.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../balance-service/src/main/java/com/microservice/balance_service/service/impl/BalanceServiceImpl.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../balance-service/src/main/resources/application.properties" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../balance-service/src/main/resources/schema.sql" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../balance-service/src/test/java/com/microservice/balance_service/BalanceServiceApplicationTests.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/org/shared/dto/TransactionEvent.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/../auth-service/.env" beforeDir="false" afterPath="$PROJECT_DIR$/../auth-service/.env" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/../auth-service/src/main/resources/application.properties" beforeDir="false" afterPath="$PROJECT_DIR$/../auth-service/src/main/resources/application.properties" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/../classification-service/src/main/resources/application.properties" beforeDir="false" afterPath="$PROJECT_DIR$/../classification-service/src/main/resources/application.properties" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build.gradle" beforeDir="false" afterPath="$PROJECT_DIR$/build.gradle" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/org/shared/utils/KafkaUtils.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/org/shared/utils/KafkaUtils.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../transaction-service/src/main/java/com/miscroservice/transaction_service/config/KafkaConfig.java" beforeDir="false" afterPath="$PROJECT_DIR$/../transaction-service/src/main/java/com/miscroservice/transaction_service/config/KafkaConfig.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../transaction-service/src/main/java/com/miscroservice/transaction_service/service/impl/TransactionServiceImpl.java" beforeDir="false" afterPath="$PROJECT_DIR$/../transaction-service/src/main/java/com/miscroservice/transaction_service/service/impl/TransactionServiceImpl.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../transaction-service/src/main/resources/application.properties" beforeDir="false" afterPath="$PROJECT_DIR$/../transaction-service/src/main/resources/application.properties" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../transaction-service/src/main/resources/schema.sql" beforeDir="false" afterPath="$PROJECT_DIR$/../transaction-service/src/main/resources/schema.sql" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../transaction-service/src/test/java/com/miscroservice/transaction_service/integration/transaction/TransactionServiceIntegrationTest.java" beforeDir="false" afterPath="$PROJECT_DIR$/../transaction-service/src/test/java/com/miscroservice/transaction_service/integration/transaction/TransactionServiceIntegrationTest.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../transaction-service/src/test/java/com/miscroservice/transaction_service/service/impl/transaction/BaseTransactionTest.java" beforeDir="false" afterPath="$PROJECT_DIR$/../transaction-service/src/test/java/com/miscroservice/transaction_service/service/impl/transaction/BaseTransactionTest.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../transaction-service/src/test/java/com/miscroservice/transaction_service/service/impl/transaction/TransactionCreationTest.java" beforeDir="false" afterPath="$PROJECT_DIR$/../transaction-service/src/test/java/com/miscroservice/transaction_service/service/impl/transaction/TransactionCreationTest.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../transaction-service/src/test/java/com/miscroservice/transaction_service/service/impl/transaction/TransactionDeletionTest.java" beforeDir="false" afterPath="$PROJECT_DIR$/../transaction-service/src/test/java/com/miscroservice/transaction_service/service/impl/transaction/TransactionDeletionTest.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../transaction-service/src/test/java/com/miscroservice/transaction_service/service/impl/transaction/TransactionDocumentProcessingTest.java" beforeDir="false" afterPath="$PROJECT_DIR$/../transaction-service/src/test/java/com/miscroservice/transaction_service/service/impl/transaction/TransactionDocumentProcessingTest.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../transaction-service/src/test/java/com/miscroservice/transaction_service/service/impl/transaction/TransactionFetchingTest.java" beforeDir="false" afterPath="$PROJECT_DIR$/../transaction-service/src/test/java/com/miscroservice/transaction_service/service/impl/transaction/TransactionFetchingTest.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../transaction-service/src/test/java/com/miscroservice/transaction_service/service/impl/transaction/TransactionUpdateTest.java" beforeDir="false" afterPath="$PROJECT_DIR$/../transaction-service/src/test/java/com/miscroservice/transaction_service/service/impl/transaction/TransactionUpdateTest.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../transaction-service/src/test/resources/schema.sql" beforeDir="false" afterPath="$PROJECT_DIR$/../transaction-service/src/test/resources/schema.sql" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -91,7 +135,7 @@
     &quot;Gradle.shared-lib [clean].executor&quot;: &quot;Run&quot;,
     &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
     &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
-    &quot;git-widget-placeholder&quot;: &quot;classification-service&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;transaction-branch&quot;,
     &quot;kotlin-language-version-configured&quot;: &quot;true&quot;,
     &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
     &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
@@ -174,6 +218,10 @@
       <workItem from="1742770467929" duration="3980000" />
       <workItem from="1742808123620" duration="114000" />
       <workItem from="1742808639676" duration="12000" />
+      <workItem from="1742979653521" duration="106000" />
+      <workItem from="1742980667857" duration="2000" />
+      <workItem from="1743159600237" duration="795000" />
+      <workItem from="1743165175856" duration="28000" />
     </task>
     <task id="LOCAL-00001" summary="[fix] update gradle">
       <option name="closed" value="true" />
