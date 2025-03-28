@@ -31,14 +31,14 @@ public class TransactionFetchingTest extends BaseTransactionTest{
     void getTransactions_FromCache_Success() {
         // Arrange
         Pageable pageable = PageRequest.of(0, 10);
-        Page<TransactionResponse> cachedPage = new PageImpl<>(List.of(
+        List<TransactionResponse> cachedList = List.of(
                 new TransactionResponse(transaction.getId(), transaction.getAmount(), transaction.getType(),
                         transaction.getCategory(), transaction.getDescription(), transaction.getDate().toString())
-        ));
+        );
 
         ValueOperations<String, Object> valueOperations = mock(ValueOperations.class);
         when(redisTemplate.opsForValue()).thenReturn(valueOperations);
-        when(valueOperations.get(anyString())).thenReturn(cachedPage); // Данные есть в кэше
+        when(valueOperations.get(anyString())).thenReturn(cachedList); // Return List instead of Page
 
         // Act
         Page<TransactionResponse> result = transactionService.getTransactions(userId, null, null, null, null, pageable);
@@ -48,8 +48,8 @@ public class TransactionFetchingTest extends BaseTransactionTest{
         assertEquals(1, result.getTotalElements());
         TransactionResponse response = result.getContent().get(0);
         assertEquals(transaction.getId(), response.getId());
-        verify(transactionRepository, never()).findByFilters(any(), any(), any(), any(), any(), any()); // Репозиторий не вызывается
-        verify(redisTemplate, times(1)).opsForValue(); // Только один вызов opsForValue
+        verify(transactionRepository, never()).findByFilters(any(), any(), any(), any(), any(), any()); // Repository not called
+        verify(redisTemplate, times(1)).opsForValue(); // Only one call to opsForValue
         verify(valueOperations).get(anyString());
         verify(valueOperations, never()).set(anyString(), any(), anyLong(), any());
     }

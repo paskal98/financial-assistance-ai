@@ -4,13 +4,17 @@ import com.miscroservice.transaction_service.exception.ValidationException;
 import com.miscroservice.transaction_service.model.dto.TransactionResponse;
 import com.miscroservice.transaction_service.model.entity.Category;
 import com.miscroservice.transaction_service.model.entity.Transaction;
+import org.apache.kafka.clients.producer.ProducerRecord;
 import org.junit.jupiter.api.Test;
+import org.springframework.data.redis.core.ValueOperations;
+import org.springframework.kafka.support.SendResult;
 import org.springframework.validation.FieldError;
 
 import java.time.format.DateTimeParseException;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -20,9 +24,18 @@ public class TransactionCreationTest extends BaseTransactionTest {
 
     @Test
     void createTransaction_Success() {
+        // Existing mocks
         when(categoryRepository.findByName("Salary")).thenReturn(Optional.of(new Category()));
         when(transactionRepository.save(any(Transaction.class))).thenReturn(transaction);
         when(redisTemplate.keys(anyString())).thenReturn(Set.of("mockedKey"));
+
+        @SuppressWarnings("unchecked")
+        ValueOperations<String, Object> valueOps = mock(ValueOperations.class);
+        when(redisTemplate.opsForValue()).thenReturn(valueOps);
+        when(valueOps.get(anyString())).thenReturn(null);
+
+        CompletableFuture<SendResult<String, String>> future = CompletableFuture.completedFuture(mock(SendResult.class));
+        when(balanceKafkaTemplate.send(any(ProducerRecord.class))).thenReturn(future);
 
         TransactionResponse response = transactionService.createTransaction(transactionRequest, userId, bindingResult);
 
@@ -31,6 +44,7 @@ public class TransactionCreationTest extends BaseTransactionTest {
         assertEquals(transaction.getAmount(), response.getAmount());
         verify(categoryRepository).findByName("Salary");
         verify(transactionRepository).save(any(Transaction.class));
+        verify(balanceKafkaTemplate).send(any(ProducerRecord.class));
         verify(redisTemplate).keys(TRANSACTIONS_CACHE_PREFIX + userId + "*");
         verify(redisTemplate).keys(STATS_CACHE_PREFIX + userId + "*");
         verify(redisTemplate).delete(anyCollection());

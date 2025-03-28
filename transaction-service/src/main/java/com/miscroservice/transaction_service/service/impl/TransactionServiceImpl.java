@@ -14,9 +14,11 @@ import com.miscroservice.transaction_service.service.TransactionService;
 import io.lettuce.core.RedisConnectionException;
 import lombok.RequiredArgsConstructor;
 import org.shared.dto.FeedbackMessage;
+import org.shared.dto.TransactionEvent;
 import org.shared.utils.KafkaUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
@@ -43,21 +45,27 @@ import java.util.stream.Collectors;
 public class TransactionServiceImpl implements TransactionService {
     private static final Logger logger = LoggerFactory.getLogger(TransactionServiceImpl.class);
     private static final String FEEDBACK_TOPIC = "document-feedback-queue";
+    private static final String BALANCE_UPDATE_TOPIC = "balance-update-topic";
 
     private final TransactionRepository transactionRepository;
     private final CategoryRepository categoryRepository;
     private final RedisTemplate<String, Object> redisTemplate;
     private final KafkaTemplate<String, String> feedbackKafkaTemplate;
+    private final KafkaTemplate<String, String> balanceKafkaTemplate;
 
     private static final String TRANSACTIONS_CACHE_PREFIX = "transactions:user:";
     private static final String STATS_CACHE_PREFIX = "stats:user:";
+    private static final String EVENT_SENT_PREFIX = "event:sent:";
+
+    @Value("${event.sent.ttl.hours}")
+    private long eventSentTtlHours;
 
     @Override
     public TransactionResponse createTransaction(TransactionRequest request, UUID userId, BindingResult bindingResult) {
         validateRequest(bindingResult);
-
         validateCategory(request.getCategory());
         validateType(request.getType());
+
         Transaction transaction = new Transaction();
         transaction.setUserId(userId);
         transaction.setAmount(request.getAmount());
@@ -71,6 +79,13 @@ public class TransactionServiceImpl implements TransactionService {
 
         try {
             transaction = transactionRepository.save(transaction);
+            sendBalanceUpdateEvent(new TransactionEvent(
+                    transaction.getId().toString(),
+                    userId,
+                    transaction.getAmount(),
+                    transaction.getType(),
+                    "CREATE"
+            ));
         } catch (Exception e) {
             logger.error("Failed to save transaction for user: {}", userId, e);
             throw new RuntimeException("Failed to create transaction", e);
@@ -114,12 +129,28 @@ public class TransactionServiceImpl implements TransactionService {
 
         validateCategory(request.getCategory());
         validateType(request.getType());
+
+        // Сохраняем старые значения для события
+        BigDecimal oldAmount = transaction.getAmount();
+        String oldType = transaction.getType();
+
         transaction.setAmount(request.getAmount());
         transaction.setCategory(request.getCategory());
         transaction.setType(request.getType());
         transaction.setDescription(request.getDescription());
         transaction.setUpdatedAt(Instant.now());
+
         transaction = transactionRepository.save(transaction);
+        sendBalanceUpdateEvent(new TransactionEvent(
+                transaction.getId().toString(),
+                userId,
+                transaction.getAmount(),
+                transaction.getType(),
+                "UPDATE",
+                oldAmount,
+                oldType
+        ));
+
         invalidateCache(userId);
         return mapToResponse(transaction);
     }
@@ -131,6 +162,14 @@ public class TransactionServiceImpl implements TransactionService {
         if (!transaction.getUserId().equals(userId)) {
             throw new AccessDeniedException("You can only delete your own transactions");
         }
+
+        sendBalanceUpdateEvent(new TransactionEvent(
+                transaction.getId().toString(),
+                userId,
+                transaction.getAmount(),
+                transaction.getType(),
+                "DELETE"
+        ));
         transactionRepository.delete(transaction);
         invalidateCache(userId);
     }
@@ -192,8 +231,16 @@ public class TransactionServiceImpl implements TransactionService {
         try {
             validateCategory(item.getCategory());
             Transaction transaction = mapToTransaction(item, userId, documentId);
-            transactionRepository.save(transaction);
+            transaction = transactionRepository.save(transaction);
             logger.info("Transaction saved from document: {}", transaction);
+
+            sendBalanceUpdateEvent(new TransactionEvent(
+                    transaction.getId().toString(),
+                    userId,
+                    transaction.getAmount(),
+                    transaction.getType(),
+                    "CREATE"
+            ));
 
             FeedbackMessage successFeedback = new FeedbackMessage(documentId.toString(), "TRANSACTION", "SUCCESS", item.getName());
             sendFeedbackAndHandle(feedbackKafkaTemplate, FEEDBACK_TOPIC, successFeedback, documentId, "success");
@@ -216,6 +263,47 @@ public class TransactionServiceImpl implements TransactionService {
         }
         UUID documentId = item.getDocumentId();
         processTransactionFromDocument(item, userId, documentId);
+    }
+
+    @KafkaListener(topics = "balance-update-topic-dlq", groupId = "transaction-dlq-group",
+            containerFactory = "kafkaListenerContainerFactory")
+    public void handleDlqMessage(String messageJson) {
+        logger.warn("Received message in DLQ: {}", messageJson);
+        // TODO:
+        TransactionEvent event = TransactionEvent.fromJson(messageJson);
+        logger.info("Processing DLQ event: transactionId={}", event.getTransactionId());
+    }
+
+    private void sendBalanceUpdateEvent(TransactionEvent event) {
+        String eventKey = EVENT_SENT_PREFIX + event.getTransactionId() + ":" + event.getOperation();
+
+        if (redisTemplate == null) {
+            logger.error("RedisTemplate is null, cannot proceed with event check");
+            throw new IllegalStateException("RedisTemplate is not initialized");
+        }
+
+        Boolean isProcessed = redisTemplate.opsForValue().get(eventKey) != null;
+        if (isProcessed) {
+            logger.info("Event already processed for transactionId={} and operation={}, skipping",
+                    event.getTransactionId(), event.getOperation());
+            return;
+        }
+
+        try {
+            CompletableFuture<SendResult<String, String>> future = KafkaUtils.sendMessage(balanceKafkaTemplate, BALANCE_UPDATE_TOPIC, event);
+            if (future != null) {
+                future.whenComplete((result, ex) -> {
+                    if (ex != null) {
+                        logger.error("Failed to send balance update event for transaction: {}", event.getTransactionId(), ex);
+                    }
+                });
+                redisTemplate.opsForValue().set(eventKey, "true", eventSentTtlHours, TimeUnit.HOURS);
+            } else {
+                logger.warn("Kafka send returned null future for transactionId={}", event.getTransactionId());
+            }
+        } catch (Exception e) {
+            logger.error("Failed to send balance update event for transaction: {}", event.getTransactionId(), e);
+        }
     }
 
     private TransactionResponse mapToResponse(Transaction transaction) {

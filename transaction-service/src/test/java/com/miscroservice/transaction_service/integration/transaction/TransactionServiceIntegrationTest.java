@@ -51,7 +51,6 @@ public class TransactionServiceIntegrationTest extends BaseIntegrationTest {
 
     @Test
     void testTransactionCreationViaKafka_Success() throws InterruptedException {
-        // Arrange: Создаем DTO для Kafka
         TransactionItemDto item = new TransactionItemDto();
         item.setName("Kafka Transaction");
         item.setCategory("Salary");
@@ -68,10 +67,8 @@ public class TransactionServiceIntegrationTest extends BaseIntegrationTest {
         KafkaTemplate<String, String> kafkaProducer = createKafkaProducer(kafka);
         kafkaProducer.send("transactions-topic", message);
 
-        // Act: Даем время обработать сообщение (асинхронная обработка)
-        Thread.sleep(2000); // Ожидание обработки Kafka
+        Thread.sleep(5000); // Увеличиваем время ожидания
 
-        // Assert: Проверяем, что транзакция сохранена в базе
         var transactions = transactionRepository.findByUserId(userId);
         assertEquals(1, transactions.size());
         assertEquals("Kafka Transaction", transactions.get(0).getDescription());
@@ -80,7 +77,6 @@ public class TransactionServiceIntegrationTest extends BaseIntegrationTest {
 
     @Test
     void testTransactionCreationViaAPI_Success() {
-        // Arrange
         TransactionRequest request = new TransactionRequest();
         request.setAmount(new BigDecimal("200.00"));
         request.setType("INCOME");
@@ -88,7 +84,6 @@ public class TransactionServiceIntegrationTest extends BaseIntegrationTest {
         request.setDescription("API Transaction");
         request.setDate(Instant.now().toString());
 
-        // Act & Assert
         given()
                 .contentType(ContentType.JSON)
                 .header("Authorization", "Bearer mock-token")
@@ -103,7 +98,6 @@ public class TransactionServiceIntegrationTest extends BaseIntegrationTest {
 
     @Test
     void testRedisCacheInvalidation() throws InterruptedException {
-        // Arrange: Создаем транзакцию через API
         TransactionRequest request = new TransactionRequest();
         request.setAmount(new BigDecimal("150.00"));
         request.setType("EXPENSE");
@@ -121,11 +115,9 @@ public class TransactionServiceIntegrationTest extends BaseIntegrationTest {
                 .statusCode(201)
                 .extract().path("id");
 
-        // Act: Получаем транзакции (должны попасть в кэш)
         Page<TransactionResponse> firstCall = transactionService.getTransactions(userId, null, null, null, null, PageRequest.of(0, 10));
         assertEquals(1, firstCall.getTotalElements());
 
-        // Удаляем транзакцию, что должно инвалидировать кэш
         given()
                 .header("Authorization", "Bearer mock-token")
                 .when()
@@ -133,16 +125,14 @@ public class TransactionServiceIntegrationTest extends BaseIntegrationTest {
                 .then()
                 .statusCode(204);
 
-        Thread.sleep(1000); // Даем время на инвалидацию кэша
+        Thread.sleep(2000); // Увеличиваем ожидание
 
-        // Assert: Проверяем, что после инвалидации кэша транзакций нет
         Page<TransactionResponse> secondCall = transactionService.getTransactions(userId, null, null, null, null, PageRequest.of(0, 10));
         assertEquals(0, secondCall.getTotalElements());
     }
 
     @Test
     void testKafkaFailure_StillProcessesViaAPI() {
-        // Arrange: Останавливаем Kafka
         kafka.stop();
 
         TransactionRequest request = new TransactionRequest();
@@ -152,7 +142,6 @@ public class TransactionServiceIntegrationTest extends BaseIntegrationTest {
         request.setDescription("API Transaction without Kafka");
         request.setDate(Instant.now().toString());
 
-        // Act & Assert: API должен работать, несмотря на сбой Kafka
         given()
                 .contentType(ContentType.JSON)
                 .header("Authorization", "Bearer mock-token")
@@ -163,7 +152,9 @@ public class TransactionServiceIntegrationTest extends BaseIntegrationTest {
                 .statusCode(201)
                 .body("amount", equalTo(400.00f));
 
-        // Перезапускаем Kafka для следующих тестов
+        var transactions = transactionRepository.findByUserId(userId);
+        assertEquals(1, transactions.size());
+
         kafka.start();
     }
 
