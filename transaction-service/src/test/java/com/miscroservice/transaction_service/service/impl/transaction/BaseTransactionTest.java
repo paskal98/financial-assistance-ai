@@ -25,6 +25,7 @@ abstract class BaseTransactionTest {
     @Mock protected CategoryRepository categoryRepository;
     @Mock protected RedisTemplate<String, Object> redisTemplate;
     @Mock protected KafkaTemplate<String, String> feedbackKafkaTemplate;
+    @Mock protected KafkaTemplate<String, String> balanceKafkaTemplate;
     @Mock protected BindingResult bindingResult;
 
     protected TransactionServiceImpl transactionService;
@@ -42,7 +43,8 @@ abstract class BaseTransactionTest {
                 transactionRepository,
                 categoryRepository,
                 redisTemplate,
-                feedbackKafkaTemplate
+                feedbackKafkaTemplate,
+                balanceKafkaTemplate
         );
         userId = UUID.randomUUID();
         transaction = new Transaction();

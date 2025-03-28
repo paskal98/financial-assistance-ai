@@ -6,13 +6,17 @@ import com.miscroservice.transaction_service.exception.ValidationException;
 import com.miscroservice.transaction_service.model.dto.TransactionResponse;
 import com.miscroservice.transaction_service.model.entity.Category;
 import com.miscroservice.transaction_service.model.entity.Transaction;
+import org.apache.kafka.clients.producer.ProducerRecord;
 import org.junit.jupiter.api.Test;
+import org.springframework.data.redis.core.ValueOperations;
+import org.springframework.kafka.support.SendResult;
 import org.springframework.validation.FieldError;
 
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -22,20 +26,37 @@ public class TransactionUpdateTest extends BaseTransactionTest {
 
     @Test
     void updateTransaction_Success() {
+        // Arrange
         when(transactionRepository.findById(transaction.getId())).thenReturn(Optional.of(transaction));
         when(categoryRepository.findByName("Salary")).thenReturn(Optional.of(new Category()));
         when(transactionRepository.save(any(Transaction.class))).thenReturn(transaction);
         when(redisTemplate.keys(anyString())).thenReturn(Set.of("mockedKey"));
 
+        // Mock redisTemplate.opsForValue()
+        @SuppressWarnings("unchecked")
+        ValueOperations<String, Object> valueOps = mock(ValueOperations.class);
+        when(redisTemplate.opsForValue()).thenReturn(valueOps);
+        when(valueOps.get(anyString())).thenReturn(null); // Event not processed yet
+        doNothing().when(valueOps).set(anyString(), any(), anyLong(), any());
+
+        // Mock KafkaTemplate.send to return a CompletableFuture
+        CompletableFuture<SendResult<String, String>> future = CompletableFuture.completedFuture(mock(SendResult.class));
+        when(balanceKafkaTemplate.send(any(ProducerRecord.class))).thenReturn(future);
+
+        // Act
         TransactionResponse response = transactionService.updateTransaction(transaction.getId(), transactionRequest, userId, bindingResult);
 
+        // Assert
         assertNotNull(response);
         assertEquals(transaction.getId(), response.getId());
         verify(transactionRepository).findById(transaction.getId());
         verify(transactionRepository).save(any(Transaction.class));
+        verify(balanceKafkaTemplate).send(any(ProducerRecord.class));
         verify(redisTemplate).keys(TRANSACTIONS_CACHE_PREFIX + userId + "*");
         verify(redisTemplate).keys(STATS_CACHE_PREFIX + userId + "*");
         verify(redisTemplate).delete(anyCollection());
+        verify(valueOps).get(anyString());
+        verify(valueOps).set(anyString(), eq("true"), anyLong(), any());
     }
 
     @Test

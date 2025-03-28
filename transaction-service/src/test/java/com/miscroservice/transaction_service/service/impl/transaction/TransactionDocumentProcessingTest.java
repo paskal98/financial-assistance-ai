@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.MockedStatic;
 import org.shared.utils.KafkaUtils;
+import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.kafka.support.SendResult;
 
 import java.math.BigDecimal;
@@ -44,8 +45,17 @@ public class TransactionDocumentProcessingTest extends BaseTransactionTest{
         when(transactionRepository.save(any(Transaction.class))).thenReturn(transaction);
         when(redisTemplate.keys(anyString())).thenReturn(Set.of("mockedKey"));
 
-        CompletableFuture<SendResult<String, String>> future = mock(CompletableFuture.class);
+        // Mock redisTemplate.opsForValue()
+        @SuppressWarnings("unchecked")
+        ValueOperations<String, Object> valueOps = mock(ValueOperations.class);
+        when(redisTemplate.opsForValue()).thenReturn(valueOps);
+        when(valueOps.get(anyString())).thenReturn(null); // Event not processed yet
+        doNothing().when(valueOps).set(anyString(), any(), anyLong(), any());
+
+        // Mock KafkaTemplate.send for both feedback and balance updates
+        CompletableFuture<SendResult<String, String>> future = CompletableFuture.completedFuture(mock(SendResult.class));
         when(feedbackKafkaTemplate.send(any(ProducerRecord.class))).thenReturn(future);
+        when(balanceKafkaTemplate.send(any(ProducerRecord.class))).thenReturn(future);
 
         // Act
         transactionService.processTransactionFromDocument(item, userId, documentId);
@@ -62,9 +72,12 @@ public class TransactionDocumentProcessingTest extends BaseTransactionTest{
         assertTrue(sentRecord.value().contains("SUCCESS"));
         assertTrue(sentRecord.value().contains("Test Transaction"));
 
+        verify(balanceKafkaTemplate).send(any(ProducerRecord.class));
         verify(redisTemplate).keys(TRANSACTIONS_CACHE_PREFIX + userId + "*");
         verify(redisTemplate).keys(STATS_CACHE_PREFIX + userId + "*");
         verify(redisTemplate).delete(anyCollection());
+        verify(valueOps).get(anyString());
+        verify(valueOps).set(anyString(), eq("true"), anyLong(), any());
     }
 
 
